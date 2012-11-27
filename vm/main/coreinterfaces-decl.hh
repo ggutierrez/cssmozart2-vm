@@ -675,7 +675,7 @@ struct Interface<VirtualString>:
 class ConstraintVar;
 template <>
 struct Interface<ConstraintVar>:
-  ImplementedBy<SmallInt>,
+  ImplementedBy<SmallInt, CstIntVar>,
   NoAutoReflectiveCalls {
 
   bool assigned(RichNode self, VM vm) {
@@ -686,13 +686,17 @@ struct Interface<ConstraintVar>:
 class IntVarLike;
 template<>
 struct Interface<IntVarLike>:
-  ImplementedBy<SmallInt>,
+  ImplementedBy<SmallInt, CstIntVar>,
   NoAutoReflectiveCalls {
 
   bool isIntVarLike(RichNode self, VM vm) {
     return false;
   }
-  
+
+  Gecode::IntVar& intVar(RichNode self, VM vm) {
+    raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
+  }  
+
   UnstableNode min(RichNode self, VM vm) {
     raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
   }

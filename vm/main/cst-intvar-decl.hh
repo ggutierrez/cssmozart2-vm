@@ -27,6 +27,10 @@ public:
   inline
   CstIntVar(VM vm, RichNode min, RichNode max);
 
+  // Constructor from a single integer
+  inline
+  CstIntVar(VM vm, nativeint n);
+
   // TODO: Constructor from a list (?) describing the domain
 
   // TODO: Ask Sebastien about this constructor. The docs says that is needed
@@ -46,9 +50,8 @@ public:
     return true;
   }
 
-//  Gecode::IntVar& intVar(Self self, VM vm) {
-//    return getVar();
-//  }
+  inline
+  Gecode::IntVar& intVar(VM vm);
 
   inline
   UnstableNode min(VM vm);
