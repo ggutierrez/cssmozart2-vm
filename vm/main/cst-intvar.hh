@@ -23,7 +23,7 @@ namespace internal {
   int element(VM vm, RichNode e) {
     nativeint elem = getArgument<nativeint>(vm,e,MOZART_STR("integer"));
     if (!validAsElement(elem))
-      raiseTypeError(vm,MOZART_STR("IntVarLike"),elem);
+      raiseTypeError(vm, MOZART_STR("IntVarLike"), elem);
     return static_cast<int>(elem);
   }
 }
@@ -36,7 +36,17 @@ CstIntVar::CstIntVar(VM vm, RichNode min, RichNode max)
     raiseError(vm, MOZART_STR("Empty range"));
 
   GecodeSpace& sp = home()->getCstSpace();
-  _varIndex = sp.newIntVar((int)mn,(int)mx);
+  _varIndex = sp.newIntVar(mn,mx);
+}
+
+CstIntVar::CstIntVar(VM vm, nativeint n)
+  : WithHome(vm) {
+
+  if (!internal::validAsElement(n))
+    raiseTypeError(vm, MOZART_STR("IntVarLike"), n);
+
+  GecodeSpace& sp = home()->getCstSpace();
+  _varIndex = sp.newIntVar((int)n, (int)n);
 }
 
 CstIntVar::CstIntVar(VM vm, GR gr, CstIntVar& from)
@@ -47,6 +57,10 @@ Gecode::IntVar& CstIntVar::getVar() {
 }
 
 // IntVarLike ------------------------------------------------------------------
+
+Gecode::IntVar& CstIntVar::intVar(VM vm) {
+  return getVar();
+}
 
 UnstableNode CstIntVar::min(VM vm) {
   return SmallInt::build(vm,getVar().min());
