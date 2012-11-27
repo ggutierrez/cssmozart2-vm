@@ -55,4 +55,8 @@
 #include "unit.hh"
 #include "variables.hh"
 
+#ifdef VM_HAS_CSS
+#include "cst-intvar.hh"
+#endif
+
 #endif // __COREDATATYPES_H
