@@ -65,7 +65,7 @@ TEST_F(CstTest, CstIntVarIntVarLikeInterface) {
 
   UnstableNode m = SmallInt::build(vm,v);
   UnstableNode isInX = IntVarLike(x).isIn(vm,m);
-  EXPECT_TRUE(BooleanValue(isInX).boolValue(vm));
+  EXPECT_TRUE(getArgument<bool>(vm,isInX));
 }
 
 TEST_F(CstTest, ConstraintVarInterface) {
