@@ -45,8 +45,18 @@ public:
   public:
     New(): Builtin("new") {}
 
-    void operator()(VM vm, Out result) {
+    static void call(VM vm, Out result) {
       result = OptName::build(vm);
+    }
+  };
+
+  class NewWithUUID: public Builtin<NewWithUUID> {
+  public:
+    NewWithUUID(): Builtin("newWithUUID") {}
+
+    static void call(VM vm, In uuid, Out result) {
+      auto uuidValue = getArgument<UUID>(vm, uuid);
+      result = GlobalName::build(vm, uuidValue);
     }
   };
 
@@ -54,7 +64,7 @@ public:
   public:
     NewUnique(): Builtin("newUnique") {}
 
-    void operator()(VM vm, In atom, Out result) {
+    static void call(VM vm, In atom, Out result) {
       auto atomValue = getArgument<atom_t>(vm, atom, MOZART_STR("Atom"));
       result = UniqueName::build(vm, unique_name_t(atomValue));
     }
@@ -64,9 +74,23 @@ public:
   public:
     NewNamed(): Builtin("newNamed") {}
 
-    void operator()(VM vm, In atom, Out result) {
+    static void call(VM vm, In atom, Out result) {
       if (AtomLike(atom).isAtom(vm)) {
         result = NamedName::build(vm, atom);
+      } else {
+        raiseTypeError(vm, MOZART_STR("Atom"), atom);
+      }
+    }
+  };
+
+  class NewNamedWithUUID: public Builtin<NewNamedWithUUID> {
+  public:
+    NewNamedWithUUID(): Builtin("newNamedWithUUID") {}
+
+    static void call(VM vm, In atom, In uuid, Out result) {
+      auto uuidValue = getArgument<UUID>(vm, uuid);
+      if (AtomLike(atom).isAtom(vm)) {
+        result = NamedName::build(vm, atom, uuidValue);
       } else {
         raiseTypeError(vm, MOZART_STR("Atom"), atom);
       }
@@ -77,7 +101,7 @@ public:
   public:
     Is(): Builtin("is") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       result = build(vm, NameLike(value).isName(vm));
     }
   };

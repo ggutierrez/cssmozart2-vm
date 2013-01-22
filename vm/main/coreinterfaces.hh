@@ -65,7 +65,6 @@ namespace mozart {
 #include "CellLike-interf.hh"
 #include "ChunkLike-interf.hh"
 #include "StringLike-interf.hh"
-#include "VirtualString-interf.hh"
 
 #ifdef VM_HAS_CSS
 #include "ConstraintVar-interf.hh"
@@ -142,7 +141,7 @@ struct Dottable: public BaseDottable {
     if (lookupFeature(vm, feature, result))
       return result;
     else
-      raise(vm, vm->coreatoms.illegalFieldSelection, _self, feature);
+      raiseKernelError(vm, MOZART_STR("."), _self, feature);
   }
 
   UnstableNode dot(VM vm, nativeint feature) {
@@ -150,7 +149,7 @@ struct Dottable: public BaseDottable {
     if (lookupFeature(vm, feature, result))
       return result;
     else
-      raise(vm, vm->coreatoms.illegalFieldSelection, _self, feature);
+      raiseKernelError(vm, MOZART_STR("."), _self, feature);
   }
 
   bool hasFeature(VM vm, RichNode feature) {

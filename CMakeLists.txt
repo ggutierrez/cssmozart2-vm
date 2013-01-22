@@ -17,7 +17,7 @@ set(DEFAULT_GTEST_BUILD_DIR "${ep_base}/Build/gtest")
 set(GTEST_SRC_DIR ${DEFAULT_GTEST_SRC_DIR} CACHE PATH "Path to GTest sources")
 set(GTEST_BUILD_DIR ${DEFAULT_GTEST_BUILD_DIR} CACHE PATH "Path to GTest build")
 
-set(MOZART_GENERATOR_FLAGS "" CACHE STRING
+set(MOZART_GENERATOR_FLAGS "${DEFAULT_MOZART_GENERATOR_FLAGS}" CACHE STRING
     "Additional flags for the generator parser (clang)")
 
 if (BUILD_CSS)
@@ -25,7 +25,7 @@ if (BUILD_CSS)
 	set(MOZART_GENERATOR_FLAGS 
 	  "-DVM_HAS_CSS=1" "-I${GECODE_INCLUDES}" ${MOZART_GENERATOR_FLAGS})
 	include_directories("${GECODE_INCLUDES}")
-	message(STATUS "Generator flags: ${MOZART_GENERATOR_FLAGS}")
+        message(STATUS "Generator flags: ${MOZART_GENERATOR_FLAGS}")
 endif()
 
 add_subdirectory(generator)

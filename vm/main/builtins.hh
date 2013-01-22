@@ -37,6 +37,12 @@ namespace builtins {
 // BaseBuiltin //
 /////////////////
 
+atom_t BaseBuiltin::getModuleNameAtom(VM vm) {
+  auto utf8Name = makeLString(_moduleName.c_str(), _moduleName.length());
+  auto nativeName = toUTF<nchar>(utf8Name);
+  return vm->getAtom(nativeName.length, nativeName.string);
+}
+
 atom_t BaseBuiltin::getNameAtom(VM vm) {
   auto utf8Name = makeLString(_name.c_str(), _name.length());
   auto nativeName = toUTF<nchar>(utf8Name);
@@ -54,7 +60,7 @@ void BaseBuiltin::getCallInfo(
   start = _codeBlock;
   Xcount = 2*_arity;
   Gs = nullptr;
-  Ks = StaticArray<StableNode>(_selfKs, 1);
+  Ks = StaticArray<StableNode>(&*_selfValue, 1);
 }
 
 void BaseBuiltin::buildCodeBlock(VM vm, RichNode self) {
@@ -116,8 +122,8 @@ void BaseBuiltin::buildCodeBlock(VM vm, RichNode self) {
   // Finalize
   assert(index == count);
 
-  // Set Ks
-  _selfKs[0].init(vm, self);
+  // Set _selfValue
+  _selfValue = vm->protect(self);
 }
 
 }
