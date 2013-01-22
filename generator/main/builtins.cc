@@ -138,8 +138,8 @@ bool extractNameFromDefaultConstructor(
   return false;
 }
 
-void processBuiltinCallOperator(BuiltinDef& definition,
-                                const CXXMethodDecl* method) {
+void processBuiltinCallMethod(BuiltinDef& definition,
+                              const CXXMethodDecl* method) {
   for (auto iter = method->param_begin()+1, e = method->param_end();
        iter != e; ++iter) {
     ParmVarDecl* param = *iter;
@@ -186,8 +186,8 @@ void handleBuiltin(BuiltinDef& definition, const ClassDecl* CD) {
           definition.nameExpr = nameExpr;
       }
     } else if (const CXXMethodDecl* method = dyn_cast<CXXMethodDecl>(decl)) {
-      if (method->getOverloadedOperator() == OO_Call) {
-        processBuiltinCallOperator(definition, method);
+      if (method->getNameAsString() == "call") {
+        processBuiltinCallMethod(definition, method);
       }
     }
   }
@@ -299,7 +299,7 @@ void BuiltinDef::makeEmulateInlinesOutput(llvm::raw_fd_ostream& to) {
 
   to << "\n";
   to << "case " << inlineOpCode << ": {\n";
-  to << "  ::" << fullCppName << "::builtin()(\n";
+  to << "  ::" << fullCppName << "::call(\n";
   to << "    vm";
 
   for (size_t i = 1; i <= params.size(); i++)
@@ -331,18 +331,56 @@ void BuiltinDef::makeBuiltinDefsOutput(llvm::raw_fd_ostream& header,
 
 void ModuleDef::makeBuiltinDefsOutput(llvm::raw_fd_ostream& header,
                                       llvm::raw_fd_ostream& code) {
-  header << "\nnamespace biref {\n";
-  code << "\nnamespace biref {\n";
+  header << "\nnamespace biref {\n\n";
+  header << "void registerBuiltin" << cppName << "(::mozart::VM vm);\n";
+  header << "\n}\n";
 
-  header << "\nstruct " << cppName << " {";
+  code << "\nnamespace biref {\n";
+  code << "using namespace ::mozart;\n";
+
+  code << "\nclass " << cppName << ": public BuiltinModule {\n";
+  code << "public:\n";
+  code << "  " << cppName << "(VM vm): BuiltinModule(vm, MOZART_STR(";
+  nameExpr->printPretty(code, nullptr, context->getPrintingPolicy());
+  code << ")) {\n";
 
   for (auto iter = builtins.begin(); iter != builtins.end(); ++iter) {
-    header << "\n";
-    iter->makeBuiltinDefsOutput(header, code);
+    code << "    instance" << iter->cppName << ".setModuleName(";
+    nameExpr->printPretty(code, nullptr, context->getPrintingPolicy());
+    code << ");\n";
   }
 
-  header << "};\n";
+  code << "\n";
+  code << "    UnstableField fields[" << builtins.size() << "];\n";
 
-  header << "\n}\n";
+  size_t i = 0;
+  for (auto iter = builtins.begin(); iter != builtins.end(); ++iter, ++i) {
+    code << "    fields[" << i << "].feature = build(vm, MOZART_STR(";
+    iter->nameExpr->printPretty(code, nullptr, context->getPrintingPolicy());
+    code << "));\n";
+
+    code << "    fields[" << i << "].value = build(vm, instance"
+         << iter->cppName << ");\n";
+  }
+
+  code << "    UnstableNode label = build(vm, MOZART_STR(\"export\"));\n";
+  code << "    UnstableNode module = buildRecordDynamic(vm, label, "
+       << builtins.size() << ", fields);\n";
+  code << "    initModule(vm, std::move(module));\n";
+  code << "  }\n";
+
+  code << "private:\n";
+
+  for (auto iter = builtins.begin(); iter != builtins.end(); ++iter) {
+    code << "  " << iter->fullCppName << " instance" << iter->cppName << ";\n";
+  }
+
+  code << "};\n";
+
+  code << "void registerBuiltin" << cppName << "(VM vm) {\n";
+  code << "  auto module = std::make_shared<" << cppName << ">(vm);\n";
+  code << "  vm->registerBuiltinModule(module);\n";
+  code << "}\n";
+
   code << "\n}\n";
 }

@@ -128,9 +128,14 @@ public:
 public:
   // Miscellaneous
 
+  inline
+  UnstableNode serialize(VM vm, SE se);
+
   void printReprToStream(VM vm, std::ostream& out, int depth) {
-    out << "<P/" << _builtin->getArity() << " " << _builtin->getName() << ">";
+    out << "<P/" << _builtin->getArity() << " '" << _builtin->getModuleName();
+    out << "." << _builtin->getName() << "'>";
   }
+
 private:
   Builtin* _builtin;
 };
@@ -207,6 +212,16 @@ public:
   inline
   void printReprToStream(VM vm, std::ostream& out, int depth);
 
+  inline
+  UnstableNode serialize(VM vm, SE se);
+
+  inline
+  GlobalNode* globalize(RichNode self, VM vm);
+
+public:
+  inline
+  void setUUID(RichNode self, VM vm, const UUID& uuid);
+
 private:
   inline
   void ensureCodeAreaCacheValid(VM vm);
@@ -216,6 +231,8 @@ private:
   void fillCodeAreaCache(VM vm);
 
 private:
+  GlobalNode* _gnode;
+
   StableNode _body;
   size_t _Gc;
 

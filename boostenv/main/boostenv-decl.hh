@@ -48,6 +48,10 @@ namespace mozart { namespace boostenv {
 //////////////////
 
 class BoostBasedVM: public VirtualMachineEnvironment {
+private:
+  using BootLoader = std::function<bool(VM vm, const std::string& url,
+                                        UnstableNode& result)>;
+
 public:
   BoostBasedVM();
 
@@ -58,6 +62,14 @@ public:
 // Configuration
 
 public:
+  const BootLoader& getBootLoader() {
+    return _bootLoader;
+  }
+
+  void setBootLoader(const BootLoader& loader) {
+    _bootLoader = loader;
+  }
+
   void setApplicationURL(char const* url);
 
   void setApplicationArgs(int argc, char const* const* argv);
@@ -131,6 +143,10 @@ private:
 public:
   const VM vm;
 
+// Bootstrap
+private:
+  BootLoader _bootLoader;
+
 // Number of asynchronous IO nodes - used for termination detection
 private:
   size_t _asyncIONodeCount;
@@ -166,32 +182,29 @@ private:
 ///////////////
 
 inline
-void ozStringToBuffer(VM vm, RichNode value, size_t size, char* buffer);
+atom_t systemStrToAtom(VM vm, const char* str);
 
 inline
-void ozStringToBuffer(VM vm, RichNode value, std::vector<char>& buffer);
+atom_t systemStrToAtom(VM vm, const std::string& str);
+
+template <typename T>
+inline
+void MOZART_NORETURN raiseOSError(VM vm, const nchar* function,
+                                  nativeint errnum, T&& message);
 
 inline
-std::string ozStringToStdString(VM vm, RichNode value);
+void MOZART_NORETURN raiseOSError(VM vm, const nchar* function, int errnum);
 
 inline
-UnstableNode stdStringToOzString(VM vm, const std::string& value);
+void MOZART_NORETURN raiseLastOSError(VM vm, const nchar* function);
 
 inline
-std::unique_ptr<nchar[]> systemStrToMozartStr(const char* str);
+void MOZART_NORETURN raiseOSError(VM vm, const nchar* function,
+                                  boost::system::error_code& ec);
 
 inline
-std::unique_ptr<nchar[]> systemStrToMozartStr(const std::string& str);
-
-inline
-void MOZART_NORETURN raiseOSError(VM vm, int errnum);
-
-inline
-void MOZART_NORETURN raiseLastOSError(VM vm);
-
-inline
-void MOZART_NORETURN raiseSystemError(VM vm,
-                                      const boost::system::system_error& error);
+void MOZART_NORETURN raiseOSError(VM vm, const nchar* function,
+                                  const boost::system::system_error& error);
 
 } }
 

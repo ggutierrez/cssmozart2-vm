@@ -63,20 +63,17 @@ public:
   int compareFeatures(VM vm, RichNode right);
 
 public:
-  // VirtualString inteface
+  // NameLike interface
 
-  bool isVirtualString(VM vm) {
+  bool isName(VM vm) {
     return true;
   }
 
-  inline
-  void toString(VM vm, std::basic_ostream<nchar>& sink);
-
-  inline
-  nativeint vsLength(VM vm);
-
 public:
   // Miscellaneous
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
 
   void printReprToStream(VM vm, std::ostream& out, int depth) {
     out << (value() ? "true" : "false");

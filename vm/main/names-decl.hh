@@ -71,6 +71,9 @@ public:
 public:
   // Miscellaneous
 
+  inline
+  GlobalNode* globalize(RichNode self, VM vm);
+
   void printReprToStream(VM vm, std::ostream& out, int depth) {
     out << "<OptName>";
   }
@@ -122,6 +125,9 @@ public:
 public:
   // Miscellaneous
 
+  inline
+  GlobalNode* globalize(RichNode self, VM vm);
+
   void printReprToStream(VM vm, std::ostream& out, int depth) {
     out << "<Name>";
   }
@@ -165,6 +171,10 @@ public:
   NamedName(VM vm, GR gr, NamedName& from);
 
 public:
+  StableNode& getPrintName() {
+    return _printName;
+  }
+
   const UUID& getUUID() {
     return _uuid;
   }
@@ -181,6 +191,12 @@ public:
 
 public:
   // Miscellaneous
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
+
+  inline
+  GlobalNode* globalize(RichNode self, VM vm);
 
   void printReprToStream(VM vm, std::ostream& out, int depth) {
     out << "<Name/" << repr(vm, _printName) << ">";
@@ -241,6 +257,9 @@ public:
 
 public:
   // Miscellaneous
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
 
   inline
   void printReprToStream(VM vm, std::ostream& out, int depth);

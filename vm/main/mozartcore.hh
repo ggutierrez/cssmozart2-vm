@@ -27,6 +27,7 @@
 
 #include "mozartcore-decl.hh"
 
+#include "bootunpickler-decl.hh"
 #include "builtins-decl.hh"
 #include "corebuilders.hh"
 #include "coredatatypes-decl.hh"

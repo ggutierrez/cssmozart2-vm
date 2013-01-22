@@ -149,23 +149,11 @@ public:
   bool testLabel(VM vm, RichNode label);
 
 public:
-  // VirtualString inteface
-
-  inline
-  bool isVirtualString(VM vm);
-
-  inline
-  void toString(RichNode self, VM vm, std::basic_ostream<nchar>& sink);
-
-  inline
-  nativeint vsLength(RichNode self, VM vm);
-
-private:
-  inline bool hasSharpLabel(VM vm);
-
-public:
   inline
   void printReprToStream(VM vm, std::ostream& out, int depth);
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
 
 private:
   friend class BaseRecord<Tuple>;
@@ -270,20 +258,11 @@ public:
   bool testLabel(VM vm, RichNode label);
 
 public:
-  // VirtualString inteface
-
-  inline
-  bool isVirtualString(RichNode self, VM vm);
-
-  inline
-  void toString(RichNode self, VM vm, std::basic_ostream<nchar>& sink);
-
-  inline
-  nativeint vsLength(RichNode self, VM vm);
-
-public:
   inline
   void printReprToStream(VM vm, std::ostream& out, int depth);
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
 
 private:
   StableNode _elements[2];
@@ -353,6 +332,9 @@ public:
 
   inline
   void printReprToStream(VM vm, std::ostream& out, int depth);
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
 
 private:
   StableNode _label;
@@ -437,6 +419,9 @@ public:
   inline
   void printReprToStream(VM vm, std::ostream& out, int depth);
 
+  inline
+  UnstableNode serialize(VM vm, SE se);
+
 private:
   friend class BaseRecord<Record>;
 
@@ -504,6 +489,9 @@ public:
   void printReprToStream(VM vm, std::ostream& out, int depth) {
     out << "<Chunk>";
   }
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
 
 private:
   StableNode* _underlying;

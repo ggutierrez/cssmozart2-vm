@@ -141,7 +141,9 @@ struct Interface<Wakeable>:
 class Literal;
 template<>
 struct Interface<Literal>:
-  ImplementedBy<Atom, OptName, GlobalName, Boolean, Unit>,
+  ImplementedBy<Atom,
+                OptName, GlobalName, NamedName, UniqueName,
+                Boolean, Unit>,
   NoAutoReflectiveCalls {
 
   bool isLiteral(RichNode self, VM vm) {
@@ -152,7 +154,8 @@ struct Interface<Literal>:
 class NameLike;
 template<>
 struct Interface<NameLike>:
-  ImplementedBy<OptName, GlobalName>,
+  ImplementedBy<OptName, GlobalName, NamedName, UniqueName,
+                Unit, Boolean>,
   NoAutoReflectiveCalls {
 
   bool isName(RichNode self, VM vm) {
@@ -651,65 +654,46 @@ struct Interface<StringLike>:
   }
 };
 
-class VirtualString;
-template<>
-struct Interface<VirtualString>:
-  ImplementedBy<SmallInt, Float, Atom, Boolean, String, Unit, Cons, Tuple,
-                ByteString>,
-  NoAutoReflectiveCalls {
+  //#ifdef VM_HAS_CSS
+  class ConstraintVar;
+  template <>
+  struct Interface<ConstraintVar>:
+    ImplementedBy<SmallInt>,
+    NoAutoReflectiveCalls {
 
-  bool isVirtualString(RichNode self, VM vm) {
-    return false;
-  }
+    bool assigned(RichNode self, VM vm) {
+      raiseTypeError(vm, MOZART_STR("ConstraintVar"), self);
+    }
+  };
 
-  void toString(RichNode self, VM vm, std::basic_ostream<nchar>& sink) {
-    raiseTypeError(vm, MOZART_STR("VirtualString"), self);
-  }
+  class IntVarLike;
+  template<>
+  struct Interface<IntVarLike>:
+    ImplementedBy<SmallInt>,
+    NoAutoReflectiveCalls {
 
-  nativeint vsLength(RichNode self, VM vm) {
-    raiseTypeError(vm, MOZART_STR("VirtualString"), self);
-  }
-};
-
-#ifdef VM_HAS_CSS
-class ConstraintVar;
-template <>
-struct Interface<ConstraintVar>:
-  ImplementedBy<SmallInt>,
-  NoAutoReflectiveCalls {
-
-  bool assigned(RichNode self, VM vm) {
-    raiseTypeError(vm, MOZART_STR("ConstraintVar"), self);
-  }
-};
-
-class IntVarLike;
-template<>
-struct Interface<IntVarLike>:
-  ImplementedBy<SmallInt>,
-  NoAutoReflectiveCalls {
-
-  bool isIntVarLike(RichNode self, VM vm) {
-    return false;
-  }
+    bool isIntVarLike(RichNode self, VM vm) {
+      return false;
+    }
   
-  UnstableNode min(RichNode self, VM vm) {
-    raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
-  }
+    UnstableNode min(RichNode self, VM vm) {
+      raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
+    }
 
-  UnstableNode max(RichNode self, VM vm) {
-    raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
-  }
+    UnstableNode max(RichNode self, VM vm) {
+      raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
+    }
 
-  UnstableNode value(RichNode self, VM vm) {
-    raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
-  }
+    UnstableNode value(RichNode self, VM vm) {
+      raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
+    }
 
-  UnstableNode isIn(RichNode self, VM vm, RichNode right) {
-    raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
-  } 
-};
-#endif
+    UnstableNode isIn(RichNode self, VM vm, RichNode right) {
+      raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
+    } 
+  };
+  //#endif
+
 }
 
 #endif // __COREINTERFACES_DECL_H

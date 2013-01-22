@@ -169,7 +169,8 @@ UnstableNode ThreadStack::buildStackTrace(VM vm, StableNode* abstraction,
                                           ProgramCounter PC) {
   OzListBuilder result(vm);
 
-  result.push_back(vm, buildStackTraceItem(vm, abstraction, PC));
+  if (abstraction != nullptr)
+    result.push_back(vm, buildStackTraceItem(vm, abstraction, PC));
 
   for (auto iter = begin(); iter != end(); ++iter) {
     StackEntry& entry = *iter;
@@ -623,13 +624,13 @@ void Thread::run() {
         }
 
         case OpBranch: {
-          int distance = IntPC(1);
+          std::ptrdiff_t distance = IntPC(1);
           advancePC(1 + distance);
           break;
         }
 
         case OpBranchBackward: {
-          int distance = IntPC(1);
+          std::ptrdiff_t distance = IntPC(1);
           advancePC(1 - distance);
           break;
         }
@@ -640,11 +641,59 @@ void Thread::run() {
           bool test;
           if (matches(vm, XPC(1), capture(test))) {
             if (test)
-              advancePC(4 + IntPC(3));
+              advancePC(3);
             else
-              advancePC(4 + IntPC(2));
+              advancePC(3 + (std::ptrdiff_t) IntPC(2));
           } else {
-            advancePC(4 + IntPC(4));
+            advancePC(3 + (std::ptrdiff_t) IntPC(3));
+          }
+
+          break;
+        }
+
+        case OpCondBranchFB: {
+          using namespace patternmatching;
+
+          bool test;
+          if (matches(vm, XPC(1), capture(test))) {
+            if (test)
+              advancePC(3);
+            else
+              advancePC(3 + (std::ptrdiff_t) IntPC(2));
+          } else {
+            advancePC(3 - (std::ptrdiff_t) IntPC(3));
+          }
+
+          break;
+        }
+
+        case OpCondBranchBF: {
+          using namespace patternmatching;
+
+          bool test;
+          if (matches(vm, XPC(1), capture(test))) {
+            if (test)
+              advancePC(3);
+            else
+              advancePC(3 - (std::ptrdiff_t) IntPC(2));
+          } else {
+            advancePC(3 + (std::ptrdiff_t) IntPC(3));
+          }
+
+          break;
+        }
+
+        case OpCondBranchBB: {
+          using namespace patternmatching;
+
+          bool test;
+          if (matches(vm, XPC(1), capture(test))) {
+            if (test)
+              advancePC(3);
+            else
+              advancePC(3 - (std::ptrdiff_t) IntPC(2));
+          } else {
+            advancePC(3 - (std::ptrdiff_t) IntPC(3));
           }
 
           break;
@@ -685,14 +734,14 @@ void Thread::run() {
           break;
         }
 
-        case OpUnifyXK: {
-          unify(vm, XPC(1), KPC(2));
+        case OpUnifyXG: {
+          unify(vm, XPC(1), GPC(2));
           advancePC(2);
           break;
         }
 
-        case OpUnifyXG: {
-          unify(vm, XPC(1), GPC(2));
+        case OpUnifyXK: {
+          unify(vm, XPC(1), KPC(2));
           advancePC(2);
           break;
         }
@@ -1073,10 +1122,9 @@ void Thread::run() {
 #include "emulate-inline.cc"
 
         default: {
-          assert(false);
-          std::cerr << "Bad opcode: " << op << "\n";
-          terminate();
-          return;
+          /* We really should not come here, but raising a proper exception
+           * helps in debugging. */
+          raiseKernelError(vm, MOZART_STR("badOpCode"), (nativeint) op);
         }
       } // Big switch testing the opcode
 
@@ -1400,6 +1448,9 @@ void Thread::applyRaise(VM vm, RichNode exception,
       std::cout << "Uncaught exception" << std::endl;
       std::cout << repr(vm, (*xregs)[0], 100) << std::endl;
 
+      UnstableNode stackTrace = stack.buildStackTrace(vm, abstraction, PC);
+      std::cout << repr(vm, stackTrace) << std::endl;
+
       terminate();
     }
   }
@@ -1472,6 +1523,12 @@ void Thread::terminate() {
 
   auto unitNode = build(vm, unit);
   DataflowVariable(_terminationVar).bind(vm, unitNode);
+}
+
+void Thread::dump() {
+  std::cerr << "Thread " << this << ", runnable:" << isRunnable() << std::endl;
+  UnstableNode stackTrace = stack.buildStackTrace(vm, nullptr, nullptr);
+  std::cerr << repr(vm, stackTrace) << std::endl;
 }
 
 }

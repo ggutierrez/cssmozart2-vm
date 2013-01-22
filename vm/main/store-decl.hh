@@ -29,6 +29,7 @@
 #include "type-decl.hh"
 #include "memword.hh"
 #include "storage-decl.hh"
+#include "uuid-decl.hh"
 
 #include <string>
 
@@ -255,6 +256,7 @@ private:
   friend class GarbageCollector;
   friend class SpaceCloner;
   friend struct StructuralDualWalk;
+  friend class Serializer;
 
   inline void reinit(VM vm, StableNode& from);
   inline void reinit(VM vm, UnstableNode& from);
@@ -367,6 +369,36 @@ public:
 };
 
 /**
+ * Global node, which can be present in others VMs, pickles, etc.
+ */
+class GlobalNode {
+private:
+  inline
+  GlobalNode(UUID uuid);
+
+public:
+  template <typename Self, typename Proto>
+  inline
+  static GlobalNode* make(VM vm, const UUID& uuid, Self&& self, Proto&& proto);
+
+  template <typename Self, typename Proto>
+  inline
+  static GlobalNode* make(VM vm, Self&& self, Proto&& proto);
+
+  inline
+  static bool get(VM vm, UUID uuid, GlobalNode*& to);
+
+public:
+  UUID uuid;
+  StableNode self;
+  StableNode protocol;
+
+private:
+  GlobalNode* left;
+  GlobalNode* right;
+};
+
+/**
  * Base class for specializations of TypedRichNode<T>
  */
 class BaseTypedRichNode {
@@ -378,6 +410,45 @@ public:
   }
 protected:
   RichNode _self;
+};
+
+/**
+ * The returned value of 'vm->protect()', a node protected from GC.
+ * This really is a std::shared_ptr<StableNode*>, but for convenience the
+ * * and -> operators dereference twice to get at the StableNode&.
+ * A ProtectedNode can be implictly converted back and forth to a genuine
+ * std::shared_ptr<StableNode*>.
+ */
+class ProtectedNode {
+public:
+  ProtectedNode() {}
+  ProtectedNode(std::nullptr_t): _node(nullptr) {}
+
+  ProtectedNode(std::shared_ptr<StableNode*>&& from): _node(std::move(from)) {}
+  ProtectedNode(const std::shared_ptr<StableNode*>& from): _node(from) {}
+
+  operator std::shared_ptr<StableNode*>() const {
+    return { _node };
+  }
+
+  StableNode& operator*() const {
+    return **_node;
+  }
+
+  StableNode* operator->() const {
+    return *_node;
+  }
+
+  explicit operator bool() const {
+    return (bool) _node;
+  }
+
+  void reset() {
+    _node.reset();
+  }
+
+private:
+  std::shared_ptr<StableNode*> _node;
 };
 
 }

@@ -30,9 +30,9 @@
 #include <string>
 #include <limits>
 
-#ifdef VM_HAS_CSS
+//#ifdef VM_HAS_CSS
 #include <gecode/int.hh>
-#endif
+//#endif
 
 #ifndef MOZART_GENERATOR
 
@@ -190,65 +190,45 @@ UnstableNode SmallInt::modValue(VM vm, nativeint b) {
   }
 }
 
-// VirtualString ---------------------------------------------------------------
+  //#ifdef VM_HAS_CSS
+  // ConstraintVar ------------------------------------------------------------
+  bool SmallInt::assigned(VM vm) {
+    if(!isIntVarLike(vm))
+      raiseTypeError(vm, MOZART_STR("ConstraintVar"), value());
+    return true;
+  }
+  // IntVarLike ---------------------------------------------------------------
+  bool SmallInt::isIntVarLike(VM vm) {
+    return (Gecode::Int::Limits::min <= value()) &&
+      (value() <= Gecode::Int::Limits::max); 
+  }
 
-void SmallInt::toString(VM vm, std::basic_ostream<nchar>& sink) {
-//sink << value();  // doesn't seem to work, don't know why.
-  std::stringstream ss;
-  ss << value();
-  auto str = ss.str();
-  size_t length = str.length();
-  std::unique_ptr<nchar[]> nStr (new nchar[length]);
-  std::copy(str.begin(), str.end(), nStr.get());
-  sink.write(nStr.get(), length);
-}
+  UnstableNode SmallInt::min(VM vm) {
+    if(!isIntVarLike(vm))
+      raiseTypeError(vm, MOZART_STR("IntVarLike"),value());
+    return SmallInt::build(vm,value());  
+  }
 
-nativeint SmallInt::vsLength(VM vm) {
-  std::stringstream ss;
-  ss << value();
-  auto str = ss.str();
-  return (nativeint) str.length();
-}
+  UnstableNode SmallInt::max(VM vm) {
+    if(!isIntVarLike(vm))
+      raiseTypeError(vm, MOZART_STR("IntVarLike"),value());
+    return SmallInt::build(vm,value());  
+  }
 
-#ifdef VM_HAS_CSS
-// ConstraintVar ------------------------------------------------------------
-bool SmallInt::assigned(VM vm) {
-  if(!isIntVarLike(vm))
-    raiseTypeError(vm, MOZART_STR("ConstraintVar"), value());
-  return true;
-}
-// IntVarLike ---------------------------------------------------------------
-bool SmallInt::isIntVarLike(VM vm) {
-  return (Gecode::Int::Limits::min <= value()) &&
-         (value() <= Gecode::Int::Limits::max); 
-}
+  UnstableNode SmallInt::value(VM vm) {
+    if(!isIntVarLike(vm))
+      raiseTypeError(vm, MOZART_STR("IntVarLike"),value());
+    return SmallInt::build(vm,value());  
+  }
 
-UnstableNode SmallInt::min(VM vm) {
-  if(!isIntVarLike(vm))
-    raiseTypeError(vm, MOZART_STR("IntVarLike"),value());
-  return SmallInt::build(vm,value());  
-}
-
-UnstableNode SmallInt::max(VM vm) {
-  if(!isIntVarLike(vm))
-    raiseTypeError(vm, MOZART_STR("IntVarLike"),value());
-  return SmallInt::build(vm,value());  
-}
-
-UnstableNode SmallInt::value(VM vm) {
-  if(!isIntVarLike(vm))
-    raiseTypeError(vm, MOZART_STR("IntVarLike"),value());
-  return SmallInt::build(vm,value());  
-}
-
-UnstableNode SmallInt::isIn(VM vm, RichNode right) {
-  nativeint r = getArgument<nativeint>(vm,right,MOZART_STR("integer"));
-  if (r < Gecode::Int::Limits::min || r > Gecode::Int::Limits::max)
-    raiseTypeError(vm,MOZART_STR("IntVarLike"),right);
-  return r == value() ? 
-         Boolean::build(vm,true) : Boolean::build(vm,false);
-}
-#endif
+  UnstableNode SmallInt::isIn(VM vm, RichNode right) {
+    nativeint r = getArgument<nativeint>(vm,right,MOZART_STR("integer"));
+    if (r < Gecode::Int::Limits::min || r > Gecode::Int::Limits::max)
+      raiseTypeError(vm,MOZART_STR("IntVarLike"),right);
+    return r == value() ? 
+      Boolean::build(vm,true) : Boolean::build(vm,false);
+  }
+  //#endif
 
 }
 
