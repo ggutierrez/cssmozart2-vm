@@ -74,6 +74,8 @@ void CoreAtoms::initialize(VM vm, AtomTable& atomTable) {
   spaceAltRange = atomTable.get(vm, MOZART_STR("spaceAltRange"));
   spaceMerged = atomTable.get(vm, MOZART_STR("spaceMerged"));
   indexOutOfBounds = atomTable.get(vm, MOZART_STR("indexOutOfBounds"));
+
+  naive = atomTable.get(vm, MOZART_STR("naive"));
 }
 
 }

@@ -77,7 +77,7 @@ TEST_F(CstTest, ConstraintVarInterface) {
   EXPECT_TRUE(ConstraintVar(x).assigned(vm));
 }
 
-TEST_F(CstTest, CstIntVarIntVarLikeInterface) {
+/*TEST_F(CstTest, CstIntVarIntVarLikeInterface) {
   nativeint v(0);
   UnstableNode x = CstIntVar::build(vm,v);
 
@@ -104,4 +104,4 @@ TEST_F(CstTest, ConstraintVarInterface) {
   nativeint v(0);
   UnstableNode x = CstIntVar::build(vm,v);
   EXPECT_TRUE(ConstraintVar(x).assigned(vm));
-}
+}*/
