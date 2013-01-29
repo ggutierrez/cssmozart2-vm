@@ -157,64 +157,72 @@ bool Tuple::testLabel(VM vm, RichNode label) {
   return mozart::equals(vm, _label, label);
 }
 
-void Tuple::printReprToStream(VM vm, std::ostream& out, int depth) {
-  out << repr(vm, _label, depth) << "(";
+void Tuple::printReprToStream(VM vm, std::ostream& out, int depth, int width) {
+  using namespace patternmatching;
 
-  if (depth <= 1) {
-    out << "...";
+  if (_width > 1 && matches(vm, _label, vm->coreatoms.sharp)) {
+    // Use the infix # notation
+    for (size_t i = 0; i < _width; ++i) {
+        if (i > 0)
+          out << "#";
+
+        if ((nativeint) i >= width) {
+          out << "...";
+          break;
+        }
+
+        RichNode element = getElements(i);
+        bool paren;
+        if (element.is<Cons>())
+          paren = true;
+        else if (element.is<Tuple>())
+          paren = element.as<Tuple>().hasSharpRepr(vm, depth-1);
+        else
+          paren = false;
+
+        if (paren)
+          out << "(" << repr(vm, element, depth, width) << ")";
+        else
+          out << repr(vm, element, depth, width);
+    }
   } else {
-    for (size_t i = 0; i < _width; i++) {
-      if (i > 0)
-        out << " ";
+    // Use standard tuple notation
+    out << repr(vm, _label, depth+1, width) << "(";
 
-      if (i >= 10) {
-        out << "...";
-        break;
+    if (depth <= 0) {
+      out << "...";
+    } else {
+      for (size_t i = 0; i < _width; i++) {
+        if (i > 0)
+          out << " ";
+
+        if ((nativeint) i >= width) {
+          out << "...";
+          break;
+        }
+
+        out << repr(vm, getElements(i), depth, width);
       }
-
-      out << repr(vm, getElements(i), depth);
-    }
-  }
-
-  out << ")";
-}
-
-bool Tuple::isVirtualString(VM vm) {
-  if (hasSharpLabel(vm)) {
-    for (size_t i = 0; i < _width; ++ i) {
-      if (!VirtualString(getElements(i)).isVirtualString(vm))
-        return false;
     }
 
-    return true;
-  } else {
-    return false;
+    out << ")";
   }
 }
 
-void Tuple::toString(RichNode self, VM vm, std::basic_ostream<nchar>& sink) {
-  if (!hasSharpLabel(vm))
-    raiseTypeError(vm, MOZART_STR("VirtualString"), self);
+bool Tuple::hasSharpRepr(VM vm, int depth) {
+  using namespace patternmatching;
 
-  for (size_t i = 0; i < _width; ++ i) {
-    VirtualString(getElements(i)).toString(vm, sink);
+  return (_width > 1) && matches(vm, _label, vm->coreatoms.sharp);
+}
+
+UnstableNode Tuple::serialize(VM vm, SE se) {
+  UnstableNode r = makeTuple(vm, MOZART_STR("tuple"), _width+1);
+  auto elements=RichNode(r).as<Tuple>().getElementsArray();
+  for (size_t i=0; i< _width; ++i) {
+    se->copy(elements[i], getElements(i));
   }
-}
-
-nativeint Tuple::vsLength(RichNode self, VM vm) {
-  if (!hasSharpLabel(vm))
-    raiseTypeError(vm, MOZART_STR("VirtualString"), self);
-
-  nativeint result = 0;
-  for (size_t i = 0; i < _width; ++ i)
-    result += VirtualString(getElements(i)).vsLength(vm);
-
-  return result;
-}
-
-bool Tuple::hasSharpLabel(VM vm) {
-  RichNode label = _label;
-  return label.is<Atom>() && label.as<Atom>().value() == vm->coreatoms.sharp;
+  se->copy(elements[_width], _label);
+  return r;
 }
 
 //////////
@@ -311,59 +319,53 @@ bool Cons::testLabel(VM vm, RichNode label) {
   return label.is<Atom>() && (label.as<Atom>().value() == vm->coreatoms.pipe);
 }
 
-namespace internal {
-
-template <class F>
-inline
-void withConsAsVirtualString(VM vm, RichNode cons, const F& onChar) {
-  ozListForEach(vm, cons,
-    [&, vm](nativeint c) {
-      if (c < 0 || c >= 256) {
-        raiseTypeError(vm, MOZART_STR("char"), c);
-      }
-      onChar((char32_t) c);
-    },
-    MOZART_STR("VirtualString")
-  );
-}
-
-}
-
-bool Cons::isVirtualString(RichNode self, VM vm) {
-  // TODO Refactor this, we do not want to catch exceptions
-  MOZART_TRY(vm) {
-    internal::withConsAsVirtualString(vm, self, [](char32_t){});
-    MOZART_RETURN_IN_TRY(vm, true);
-  } MOZART_CATCH(vm, kind, node) {
-    if (kind == ExceptionKind::ekRaise)
-      return false;
-    else
-      MOZART_RETHROW(vm);
-  } MOZART_ENDTRY(vm);
-}
-
-void Cons::toString(RichNode self, VM vm, std::basic_ostream<nchar>& sink) {
-  internal::withConsAsVirtualString(vm, self,
-    [&](char32_t c) {
-      nchar buffer[4];
-      nativeint length = toUTF(c, buffer);
-      sink.write(buffer, length);
+void Cons::printReprToStream(VM vm, std::ostream& out, int depth, int width) {
+  if (hasListRepr(vm, depth)) {
+    out << "[" << repr(vm, _elements[0], depth, width);
+    ozListForEach(vm, _elements[1],
+      [vm, &out, depth, width] (RichNode element) {
+        out << " " << repr(vm, element, depth, width);
+      },
+      MOZART_STR("list")
+    );
+    out << "]";
+  } else {
+    if (RichNode(_elements[0]).is<Cons>()) {
+      out << "(" << repr(vm, _elements[0], depth, width) << ")";
+    } else {
+      out << repr(vm, _elements[0], depth, width);
     }
-  );
+
+    out << "|" << repr(vm, _elements[1], depth, width);
+  }
 }
 
-nativeint Cons::vsLength(RichNode self, VM vm) {
-  nativeint length = 0;
+bool Cons::hasListRepr(VM vm, int depth) {
+  using namespace patternmatching;
 
-  internal::withConsAsVirtualString(vm, self,
-    [&](char32_t) { ++ length; }
-  );
+  RichNode tail = _elements[1];
+  int i = 1;
+  while (i < depth && !tail.isTransient()) {
+    RichNode next;
+    if (matchesCons(vm, tail, wildcard(), capture(next)))
+      tail = next;
+    else if (matches(vm, tail, vm->coreatoms.nil))
+      return true;
+    else
+      return false;
+    ++i;
+  }
 
-  return length;
+  return false;
 }
 
-void Cons::printReprToStream(VM vm, std::ostream& out, int depth) {
-  out << repr(vm, _elements[0], depth) << "|" << repr(vm, _elements[1], depth);
+UnstableNode Cons::serialize(VM vm, SE se) {
+  auto result = buildTuple(vm, MOZART_STR("cons"),
+                           OptVar::build(vm), OptVar::build(vm));
+  auto elements = RichNode(result).as<Tuple>().getElementsArray();
+  se->copy(elements[0], _elements[0]);
+  se->copy(elements[1], _elements[1]);
+  return result;
 }
 
 ///////////
@@ -430,20 +432,36 @@ bool Arity::lookupFeature(VM vm, RichNode feature, size_t& offset) {
   return false;
 }
 
-void Arity::printReprToStream(VM vm, std::ostream& out, int depth) {
-  out << "<Arity " << repr(vm, _label, depth) << "(";
+void Arity::printReprToStream(VM vm, std::ostream& out, int depth, int width) {
+  out << "<Arity " << repr(vm, _label, depth+1, width) << "(";
 
-  if (depth <= 1) {
+  if (depth <= 0) {
     out << "...";
   } else {
     for (size_t i = 0; i < _width; i++) {
       if (i > 0)
         out << " ";
-      out << repr(vm, getElements(i), depth);
+
+      if ((nativeint) i >= width) {
+        out << "...";
+        break;
+      }
+
+      out << repr(vm, getElements(i), depth, width);
     }
   }
 
   out << ")>";
+}
+
+UnstableNode Arity::serialize(VM vm, SE se) {
+  UnstableNode r = makeTuple(vm, MOZART_STR("arity"), _width+1);
+  auto elements=RichNode(r).as<Tuple>().getElementsArray();
+  for (size_t i=0; i< _width; ++i) {
+    se->copy(elements[i], getElements(i));
+  }
+  se->copy(elements[_width], _label);
+  return r;
 }
 
 ////////////
@@ -533,28 +551,40 @@ bool Record::testLabel(VM vm, RichNode label) {
     vm, *RichNode(_arity).as<Arity>().getLabel(), label);
 }
 
-void Record::printReprToStream(VM vm, std::ostream& out, int depth) {
-  out << repr(vm, *RichNode(_arity).as<Arity>().getLabel(), depth) << "(";
+void Record::printReprToStream(VM vm, std::ostream& out, int depth, int width) {
+  out << repr(vm, *RichNode(_arity).as<Arity>().getLabel(), depth+1, width);
+  out << "(";
 
-  if (depth <= 1) {
+  if (depth <= 0) {
     out << "...";
   } else {
     for (size_t i = 0; i < _width; i++) {
       if (i > 0)
         out << " ";
 
-      if (i >= 10) {
+      if ((nativeint) i >= width) {
         out << "...";
         break;
       }
 
       auto feature = getFeatureAt(vm, i);
 
-      out << repr(vm, feature, depth) << ":" << repr(vm, getElements(i), depth);
+      out << repr(vm, feature, depth, width) << ":";
+      out << repr(vm, getElements(i), depth, width);
     }
   }
 
   out << ")";
+}
+
+UnstableNode Record::serialize(VM vm, SE se) {
+  UnstableNode r = makeTuple(vm, MOZART_STR("record"), _width+1);
+  auto elements=RichNode(r).as<Tuple>().getElementsArray();
+  for (size_t i=0; i< _width; ++i) {
+    se->copy(elements[i], getElements(i));
+  }
+  se->copy(elements[_width], _arity);
+  return r;
 }
 
 ///////////
@@ -575,6 +605,12 @@ bool Chunk::lookupFeature(VM vm, RichNode feature,
 bool Chunk::lookupFeature(VM vm, nativeint feature,
                           nullable<UnstableNode&> value) {
   return Dottable(*_underlying).lookupFeature(vm, feature, value);
+}
+
+UnstableNode Chunk::serialize(VM vm, SE se) {
+  auto result = buildTuple(vm, MOZART_STR("chunk"), OptVar::build(vm));
+  se->copy(RichNode(result).as<Tuple>().getElements(0), *_underlying);
+  return result;
 }
 
 }

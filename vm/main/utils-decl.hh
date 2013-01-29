@@ -51,6 +51,12 @@ struct PrimitiveTypeToExpectedAtom<size_t> {
   static atom_t result(VM vm);
 };
 
+template <>
+struct PrimitiveTypeToExpectedAtom<UUID> {
+  inline
+  static atom_t result(VM vm);
+};
+
 template <class T>
 inline
 T getArgument(VM vm, RichNode argValue, const nchar* expectedType);
@@ -90,7 +96,7 @@ void requireFeature(VM vm, RichNode feature);
 class OzListBuilder {
 public:
   inline
-  OzListBuilder(VM vm);
+  explicit OzListBuilder(VM vm);
 
   template <class T>
   inline
@@ -102,6 +108,10 @@ public:
 
   inline
   UnstableNode get(VM vm);
+
+  template <typename T>
+  inline
+  UnstableNode get(VM vm, T&& tail);
 private:
   UnstableNode _head;
   NodeHole _tail;
@@ -138,9 +148,89 @@ auto ozListForEach(VM vm, RichNode list, const F& f,
 inline
 size_t ozListLength(VM vm, RichNode list);
 
-template <class C>
+//////////////////////////////////////
+// Virtual strings and byte strings //
+//////////////////////////////////////
+
+// A priori internal, but could be used outside
+
 inline
-std::basic_string<C> vsToString(VM vm, RichNode vs);
+nativeint ozVSLengthForBufferNoRaise(VM vm, RichNode vs);
+
+inline
+bool ozVSGetNoRaise(VM vm, RichNode vs, std::vector<nchar>& output);
+
+inline
+nativeint ozVBSLengthForBufferNoRaise(VM vm, RichNode vbs);
+
+template <typename C>
+inline
+bool ozVBSGetNoRaise(VM vm, RichNode vbs, std::vector<C>& output);
+
+// Regular public API
+
+inline
+bool ozIsVirtualString(VM vm, RichNode vs);
+
+inline
+size_t ozVSLengthForBuffer(VM vm, RichNode vs);
+
+inline
+void ozVSGet(VM vm, RichNode vs, std::vector<nchar>& output);
+
+inline
+void ozVSGet(VM vm, RichNode vs, size_t bufSize, std::vector<nchar>& output);
+
+template <typename C>
+inline
+void ozVSGet(VM vm, RichNode vs, size_t bufSize, std::vector<C>& output);
+
+template <typename C>
+inline
+void ozVSGet(VM vm, RichNode vs, size_t bufSize, std::basic_string<C>& output);
+
+template <typename C = nchar>
+inline
+LString<C> ozVSGetAsLString(VM vm, RichNode vs, size_t bufSize);
+
+template <typename C>
+inline
+void ozVSGetNullTerminated(VM vm, RichNode vs, size_t bufSize,
+                           std::vector<C>& output);
+
+template <typename C = nchar>
+inline
+LString<C> ozVSGetNullTerminatedAsLString(VM vm, RichNode vs, size_t bufSize);
+
+inline
+size_t ozVSLength(VM vm, RichNode vs);
+
+inline
+bool ozIsVirtualByteString(VM vm, RichNode vs);
+
+inline
+size_t ozVBSLengthForBuffer(VM vm, RichNode vbs);
+
+template <typename C,
+          typename = typename std::enable_if<
+            std::is_same<C, char>::value ||
+            std::is_same<C, unsigned char>::value>::type>
+inline
+void ozVBSGet(VM vm, RichNode vbs, std::vector<C>& output);
+
+template <typename C,
+          typename = typename std::enable_if<
+            std::is_same<C, char>::value ||
+            std::is_same<C, unsigned char>::value>::type>
+inline
+void ozVBSGet(VM vm, RichNode vbs, size_t bufSize, std::vector<C>& output);
+
+inline
+size_t ozVBSLength(VM vm, RichNode vs);
+
+////////////////////////////////
+// Port-like usage of streams //
+////////////////////////////////
 
 template <typename T>
 inline

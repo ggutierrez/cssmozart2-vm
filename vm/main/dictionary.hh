@@ -138,6 +138,8 @@ void NodeDictionary::clone(VM vm, NodeDictionary src) {
 
 bool NodeDictionary::lookupNode(VM vm, RichNode key, Node*& node,
                                 Node*& parent) {
+  requireFeature(vm, key);
+
   node = root;
   parent = nullptr;
 
@@ -570,7 +572,8 @@ UnstableNode Dictionary::dictClone(VM vm) {
   return Dictionary::build(vm, dict);
 }
 
-void Dictionary::printReprToStream(VM vm, std::ostream& out, int depth) {
+void Dictionary::printReprToStream(VM vm, std::ostream& out,
+                                   int depth, int width) {
   out << "<Dictionary>";
 }
 

@@ -33,19 +33,41 @@ namespace mozart {
 
 namespace builtins {
 
-//////////////////////
+/////////////////////
 // Property module //
-//////////////////////
+/////////////////////
 
 class ModProperty: public Module {
 public:
   ModProperty(): Module("Property") {}
 
+  class RegisterValue: public Builtin<RegisterValue> {
+  public:
+    RegisterValue(): Builtin("registerValue") {}
+
+    static void call(VM vm, In property, In value) {
+      auto propertyAtom = getArgument<atom_t>(vm, property);
+      vm->getPropertyRegistry().registerValueProp(
+        vm, propertyAtom.contents(), value);
+    }
+  };
+
+  class RegisterConstant: public Builtin<RegisterConstant> {
+  public:
+    RegisterConstant(): Builtin("registerConstant") {}
+
+    static void call(VM vm, In property, In value) {
+      auto propertyAtom = getArgument<atom_t>(vm, property);
+      vm->getPropertyRegistry().registerConstantProp(
+        vm, propertyAtom.contents(), value);
+    }
+  };
+
   class Get: public Builtin<Get> {
   public:
     Get(): Builtin("get") {}
 
-    void operator()(VM vm, In property, Out result, Out found) {
+    static void call(VM vm, In property, Out result, Out found) {
       if (vm->getPropertyRegistry().get(vm, property, result)) {
         found = build(vm, true);
       } else {
@@ -59,7 +81,7 @@ public:
   public:
     Put(): Builtin("put") {}
 
-    void operator()(VM vm, In property, In value, Out found) {
+    static void call(VM vm, In property, In value, Out found) {
       found = build(vm, vm->getPropertyRegistry().put(vm, property, value));
     }
   };

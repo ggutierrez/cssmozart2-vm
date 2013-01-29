@@ -24,6 +24,9 @@
 
 #include "boostenv.hh"
 
+#include <fstream>
+#include <boost/random/random_device.hpp>
+
 namespace mozart { namespace boostenv {
 
 //////////////////
@@ -32,8 +35,25 @@ namespace mozart { namespace boostenv {
 
 BoostBasedVM::BoostBasedVM(): virtualMachine(*this), vm(&virtualMachine),
   _asyncIONodeCount(0),
-  random_generator(std::time(nullptr)), uuidGenerator(random_generator),
+  uuidGenerator(random_generator),
   preemptionTimer(io_service), alarmTimer(io_service) {
+
+  builtins::biref::registerBuiltinModOS(vm);
+
+  // Initialize the pseudo random number generator with a really random seed
+  boost::random::random_device generator;
+  random_generator.seed(generator);
+
+  // Set up a default boot loader
+  setBootLoader(
+    [] (VM vm, const std::string& url, UnstableNode& result) -> bool {
+      std::ifstream input(url);
+      if (!input.is_open())
+        return false;
+      result = bootUnpickle(vm, input);
+      return true;
+    }
+  );
 }
 
 void BoostBasedVM::setApplicationURL(char const* url) {

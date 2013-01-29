@@ -117,23 +117,33 @@ public:
   inline
   UnstableNode modValue(VM vm, nativeint b);
 
+#ifdef VM_HAS_CSS
 public:
-  // VirtualString inteface
-
-  bool isVirtualString(VM vm) {
-    return true;
-  }
+  // ConstraintVar interface
+  inline
+  bool assigned(VM vm);
+public:
+  // IntVarLike interface
+  inline
+  bool isIntVarLike(VM vm);
 
   inline
-  void toString(VM vm, std::basic_ostream<nchar>& sink);
+  UnstableNode min(VM vm);
 
   inline
-  nativeint vsLength(VM vm);
+  UnstableNode max(VM vm);
+
+  inline
+  UnstableNode value(VM vm);
+
+  inline
+  UnstableNode isIn(VM vm, RichNode right);
+#endif
 
 public:
   // Miscellaneous
 
-  void printReprToStream(VM vm, std::ostream& out, int depth) {
+  void printReprToStream(VM vm, std::ostream& out, int depth, int width) {
     out << value();
   }
 

@@ -31,6 +31,10 @@
 #include "exceptions-decl.hh"
 #include "vmallocatedlist-decl.hh"
 
+#ifdef VM_HAS_CSS
+#include "gecode-space-decl.hh"
+#endif
+
 namespace mozart {
 
 struct ScriptEntry {
@@ -331,6 +335,19 @@ private:
     _mark = false;
   }
 
+#ifdef VM_HAS_CSS
+public: 
+  GecodeSpace& getCstSpace() {
+    if (_cstSpace == nullptr)
+      _cstSpace = new GecodeSpace;
+    return *_cstSpace;
+  }
+
+  bool hasConstraintSpace() {
+    return _cstSpace != nullptr;
+  }
+#endif
+
 // Fields
 
 private:
@@ -360,6 +377,9 @@ private:
   SpaceTrail trail;
   SpaceScript script;
 
+#ifdef VM_HAS_CSS
+  GecodeSpace* _cstSpace;
+#endif
   /*
    * Maintaining a counter of threads
    * Invariants:

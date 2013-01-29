@@ -48,19 +48,77 @@ public:
   public:
     Is() : Builtin("is") {}
 
-    void operator()(VM vm, In value, Out result) {
-      result = build(vm, VirtualString(value).isVirtualString(vm));
+    static void call(VM vm, In value, Out result) {
+      result = build(vm, ozIsVirtualString(vm, value));
     }
   };
 
-  class ToString : public Builtin<ToString> {
+  class ToCompactString : public Builtin<ToCompactString> {
   public:
-    ToString() : Builtin("toString") {}
+    ToCompactString() : Builtin("toCompactString") {}
 
-    void operator()(VM vm, In value, Out result) {
-      std::basic_ostringstream<nchar> stringStream;
-      VirtualString(value).toString(vm, stringStream);
-      result = String::build(vm, newLString(vm, stringStream.str()));
+    static void call(VM vm, In value, Out result) {
+      size_t bufSize = ozVSLengthForBuffer(vm, value);
+
+      if (value.is<String>()) {
+        result.copy(vm, value);
+        return;
+      }
+
+      {
+        std::vector<nchar> buffer;
+        ozVSGet(vm, value, bufSize, buffer);
+        result = String::build(vm, newLString(vm, buffer));
+      }
+    }
+  };
+
+  class ToCharList : public Builtin<ToCharList> {
+  public:
+    ToCharList() : Builtin("toCharList") {}
+
+    static void call(VM vm, In value, In tail, Out result) {
+      size_t bufSize = ozVSLengthForBuffer(vm, value);
+
+      if (value.is<Cons>() ||
+          patternmatching::matches(vm, value, vm->coreatoms.nil)) {
+        result.copy(vm, value);
+        return;
+      }
+
+      {
+        std::vector<nchar> buffer;
+        ozVSGet(vm, value, bufSize, buffer);
+
+        OzListBuilder builder(vm);
+        forEachCodePoint(makeLString(buffer.data(), buffer.size()),
+          [vm, &builder] (char32_t c) -> bool {
+            builder.push_back(vm, (nativeint) c);
+            return true;
+          }
+        );
+        result = builder.get(vm, tail);
+      }
+    }
+  };
+
+  class ToAtom : public Builtin<ToAtom> {
+  public:
+    ToAtom() : Builtin("toAtom") {}
+
+    static void call(VM vm, In value, Out result) {
+      size_t bufSize = ozVSLengthForBuffer(vm, value);
+
+      if (value.is<Atom>()) {
+        result.copy(vm, value);
+        return;
+      }
+
+      {
+        std::vector<nchar> buffer;
+        ozVSGet(vm, value, bufSize, buffer);
+        result = Atom::build(vm, buffer.size(), buffer.data());
+      }
     }
   };
 
@@ -68,8 +126,8 @@ public:
   public:
     Length() : Builtin("length") {}
 
-    void operator()(VM vm, In value, Out result) {
-      result = build(vm, VirtualString(value).vsLength(vm));
+    static void call(VM vm, In value, Out result) {
+      result = build(vm, ozVSLength(vm, value));
     }
   };
 
@@ -77,27 +135,26 @@ public:
   public:
     ToFloat() : Builtin("toFloat") {}
 
-    void operator()(VM vm, In value, Out result) {
-      std::basic_ostringstream<nchar> stringStream;
-      VirtualString(value).toString(vm, stringStream);
+    static void call(VM vm, In value, Out result) {
+      size_t bufSize = ozVSLengthForBuffer(vm, value);
 
-      auto bufferStr = stringStream.str();
-      auto nstr = makeLString(bufferStr.c_str(), bufferStr.size());
-      auto utf8str = toUTF<char>(nstr);
-      std::stringstream strStream;
-      strStream << utf8str;
+      bool success;
+      double doubleResult;
 
-      auto str = strStream.str();
+      {
+        std::string str;
+        ozVSGet(vm, value, bufSize, str);
 
-      for (auto iter = str.begin(); iter != str.end(); ++iter)
-        if (*iter == '~')
-          *iter = '-';
+        for (auto iter = str.begin(); iter != str.end(); ++iter)
+          if (*iter == '~')
+            *iter = '-';
 
-      char* end = nullptr;
-      double doubleResult = 0.0;
-      doubleResult = std::strtod(str.c_str(), &end);
+        char* end = nullptr;
+        doubleResult = std::strtod(str.c_str(), &end);
+        success = *end == '\0';
+      }
 
-      if (*end != '\0')
+      if (!success)
         raiseKernelError(vm, MOZART_STR("stringNoFloat"), value);
 
       result = build(vm, doubleResult);

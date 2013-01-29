@@ -126,6 +126,10 @@ void Space::constructor(VM vm, bool isTopLevel, Space* parent) {
 
   threadCount = 0;
   cascadedRunnableThreadCount = 0;
+
+#ifdef VM_HAS_CSS
+  _cstSpace = nullptr;
+#endif
 }
 
 Space::Space(GR gr, Space* from) {
@@ -186,6 +190,10 @@ Space::Space(GR gr, Space* from) {
     // A stable space, by definition, has no runnable threads
     assert(cascadedRunnableThreadCount == 0);
   }
+#endif
+
+#ifdef VM_HAS_CSS
+  _cstSpace = nullptr;
 #endif
 }
 

@@ -100,6 +100,8 @@ struct ImplementationDef {
     hasUUID = false;
     hasGetTypeAtom = false;
     hasPrintReprToStream = false;
+    hasSerialize = false;
+    hasGlobalize = false;
     autoGCollect = true;
     autoSClone = true;
   }
@@ -131,6 +133,8 @@ struct ImplementationDef {
   bool hasUUID;
   bool hasGetTypeAtom;
   bool hasPrintReprToStream;
+  bool hasSerialize;
+  bool hasGlobalize;
   bool autoGCollect;
   bool autoSClone;
   std::vector<ImplemMethodDef> methods;
@@ -196,6 +200,10 @@ void collectMethods(ImplementationDef& definition, const ClassDecl* CD) {
 
       if (function->getNameAsString() == "printReprToStream")
         definition.hasPrintReprToStream = true;
+      else if (function->getNameAsString() == "serialize")
+        definition.hasSerialize = true;
+      else if (function->getNameAsString() == "globalize")
+        definition.hasGlobalize = true;
       else if (function->getNameAsString() == "compareFeatures")
         definition.feature = true;
 
@@ -334,7 +342,19 @@ void ImplementationDef::makeOutputDeclAfter(llvm::raw_fd_ostream& to) {
     to << "\n";
     to << "  inline\n";
     to << "  void printReprToStream(VM vm, RichNode self, std::ostream& out,\n";
-    to << "                         int depth) const;\n";
+    to << "                         int depth, int width) const;\n";
+  }
+
+  if (hasSerialize) {
+    to << "\n";
+    to << "  inline\n";
+    to << "  UnstableNode serialize(VM vm, SE s, RichNode from) const;\n";
+  }
+
+  if (hasGlobalize) {
+    to << "\n";
+    to << "  inline\n";
+    to << "  GlobalNode* globalize(VM vm, RichNode from) const;\n";
   }
 
   if (autoGCollect) {
@@ -409,9 +429,28 @@ void ImplementationDef::makeOutput(llvm::raw_fd_ostream& to) {
     to << "\n";
     to << "void " << className
        << "::printReprToStream(VM vm, RichNode self, std::ostream& out,\n";
-    to << "                    int depth) const {\n";
+    to << "                    int depth, int width) const {\n";
     to << "  assert(self.is<" << name << ">());\n";
-    to << "  self.as<" << name << ">().printReprToStream(vm, out, depth);\n";
+    to << "  self.as<" << name
+       << ">().printReprToStream(vm, out, depth, width);\n";
+    to << "}\n";
+  }
+
+  if (hasSerialize) {
+    to << "\n";
+    to << "UnstableNode " << className
+       << "::serialize(VM vm, SE s, RichNode from) const {\n";
+    to << "  assert(from.is<" << name << ">());\n";
+    to << "  return from.as<" << name << ">().serialize(vm, s);\n";
+    to << "}\n";
+  }
+
+  if (hasGlobalize) {
+    to << "\n";
+    to << "GlobalNode* " << className
+       << "::globalize(VM vm, RichNode from) const {\n";
+    to << "  assert(from.is<" << name << ">());\n";
+    to << "  return from.as<" << name << ">().globalize(vm);\n";
     to << "}\n";
   }
 

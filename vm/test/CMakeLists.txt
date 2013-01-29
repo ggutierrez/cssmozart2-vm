@@ -39,6 +39,11 @@ else()
     virtualstringtest.cc bytestringtest.cc)
 endif()
 
+if(BUILD_CSS)
+  list(APPEND VMTEST_SRCS csttest.cc)
+  add_definitions("-DVM_HAS_CSS=1")
+endif()
+
 add_executable(vmtest ${VMTEST_SRCS})
 target_link_libraries(vmtest mozartvm custom_gtest custom_gtest_main)
 

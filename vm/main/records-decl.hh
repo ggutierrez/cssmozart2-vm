@@ -149,23 +149,14 @@ public:
   bool testLabel(VM vm, RichNode label);
 
 public:
-  // VirtualString inteface
+  inline
+  void printReprToStream(VM vm, std::ostream& out, int depth, int width);
 
   inline
-  bool isVirtualString(VM vm);
+  bool hasSharpRepr(VM vm, int depth);
 
   inline
-  void toString(RichNode self, VM vm, std::basic_ostream<nchar>& sink);
-
-  inline
-  nativeint vsLength(RichNode self, VM vm);
-
-private:
-  inline bool hasSharpLabel(VM vm);
-
-public:
-  inline
-  void printReprToStream(VM vm, std::ostream& out, int depth);
+  UnstableNode serialize(VM vm, SE se);
 
 private:
   friend class BaseRecord<Tuple>;
@@ -270,20 +261,14 @@ public:
   bool testLabel(VM vm, RichNode label);
 
 public:
-  // VirtualString inteface
+  inline
+  void printReprToStream(VM vm, std::ostream& out, int depth, int width);
 
   inline
-  bool isVirtualString(RichNode self, VM vm);
+  bool hasListRepr(VM vm, int depth);
 
   inline
-  void toString(RichNode self, VM vm, std::basic_ostream<nchar>& sink);
-
-  inline
-  nativeint vsLength(RichNode self, VM vm);
-
-public:
-  inline
-  void printReprToStream(VM vm, std::ostream& out, int depth);
+  UnstableNode serialize(VM vm, SE se);
 
 private:
   StableNode _elements[2];
@@ -352,7 +337,10 @@ public:
   // Miscellaneous
 
   inline
-  void printReprToStream(VM vm, std::ostream& out, int depth);
+  void printReprToStream(VM vm, std::ostream& out, int depth, int width);
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
 
 private:
   StableNode _label;
@@ -435,7 +423,10 @@ public:
 
 public:
   inline
-  void printReprToStream(VM vm, std::ostream& out, int depth);
+  void printReprToStream(VM vm, std::ostream& out, int depth, int width);
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
 
 private:
   friend class BaseRecord<Record>;
@@ -501,9 +492,12 @@ public:
 public:
   // Miscellaneous
 
-  void printReprToStream(VM vm, std::ostream& out, int depth) {
+  void printReprToStream(VM vm, std::ostream& out, int depth, int width) {
     out << "<Chunk>";
   }
+
+  inline
+  UnstableNode serialize(VM vm, SE se);
 
 private:
   StableNode* _underlying;

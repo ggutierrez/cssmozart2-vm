@@ -122,16 +122,6 @@ bool ThreadStack::findExceptionHandler(VM vm, StableNode*& abstraction,
 }
 
 namespace {
-  template <class Feat, class Def>
-  inline
-  UnstableNode handyCondSelect(VM vm, RichNode record, Feat&& feature,
-                               Def&& def) {
-    UnstableNode featureNode = build(vm, std::forward<Feat>(feature));
-    UnstableNode defaultNode = build(vm, std::forward<Def>(def));
-
-    return Dottable(record).condSelect(vm, featureNode, defaultNode);
-  }
-
   inline
   UnstableNode buildStackTraceItem(VM vm, StableNode* abstraction,
                                    ProgramCounter PC) {
@@ -142,12 +132,11 @@ namespace {
     UnstableNode kind = build(vm, MOZART_STR("call"));
     UnstableNode data = build(vm, *abstraction);
 
-    UnstableNode file = handyCondSelect(vm, debugData, MOZART_STR("file"),
-                                        vm->coreatoms.empty);
-    UnstableNode line = handyCondSelect(vm, debugData, MOZART_STR("line"),
-                                        unit);
-    UnstableNode column = handyCondSelect(vm, debugData, MOZART_STR("column"),
-                                          -1);
+    Dottable dotDebugData(debugData);
+    UnstableNode file = dotDebugData.condSelect(vm, MOZART_STR("file"),
+                                                vm->coreatoms.empty);
+    UnstableNode line = dotDebugData.condSelect(vm, MOZART_STR("line"), unit);
+    UnstableNode column = dotDebugData.condSelect(vm, MOZART_STR("column"), -1);
 
     UnstableNode PCNode = build(vm, reinterpret_cast<std::intptr_t>(PC));
 
@@ -169,7 +158,8 @@ UnstableNode ThreadStack::buildStackTrace(VM vm, StableNode* abstraction,
                                           ProgramCounter PC) {
   OzListBuilder result(vm);
 
-  result.push_back(vm, buildStackTraceItem(vm, abstraction, PC));
+  if (abstraction != nullptr)
+    result.push_back(vm, buildStackTraceItem(vm, abstraction, PC));
 
   for (auto iter = begin(); iter != end(); ++iter) {
     StackEntry& entry = *iter;
@@ -623,13 +613,13 @@ void Thread::run() {
         }
 
         case OpBranch: {
-          int distance = IntPC(1);
+          std::ptrdiff_t distance = IntPC(1);
           advancePC(1 + distance);
           break;
         }
 
         case OpBranchBackward: {
-          int distance = IntPC(1);
+          std::ptrdiff_t distance = IntPC(1);
           advancePC(1 - distance);
           break;
         }
@@ -640,11 +630,59 @@ void Thread::run() {
           bool test;
           if (matches(vm, XPC(1), capture(test))) {
             if (test)
-              advancePC(4 + IntPC(3));
+              advancePC(3);
             else
-              advancePC(4 + IntPC(2));
+              advancePC(3 + (std::ptrdiff_t) IntPC(2));
           } else {
-            advancePC(4 + IntPC(4));
+            advancePC(3 + (std::ptrdiff_t) IntPC(3));
+          }
+
+          break;
+        }
+
+        case OpCondBranchFB: {
+          using namespace patternmatching;
+
+          bool test;
+          if (matches(vm, XPC(1), capture(test))) {
+            if (test)
+              advancePC(3);
+            else
+              advancePC(3 + (std::ptrdiff_t) IntPC(2));
+          } else {
+            advancePC(3 - (std::ptrdiff_t) IntPC(3));
+          }
+
+          break;
+        }
+
+        case OpCondBranchBF: {
+          using namespace patternmatching;
+
+          bool test;
+          if (matches(vm, XPC(1), capture(test))) {
+            if (test)
+              advancePC(3);
+            else
+              advancePC(3 - (std::ptrdiff_t) IntPC(2));
+          } else {
+            advancePC(3 + (std::ptrdiff_t) IntPC(3));
+          }
+
+          break;
+        }
+
+        case OpCondBranchBB: {
+          using namespace patternmatching;
+
+          bool test;
+          if (matches(vm, XPC(1), capture(test))) {
+            if (test)
+              advancePC(3);
+            else
+              advancePC(3 - (std::ptrdiff_t) IntPC(2));
+          } else {
+            advancePC(3 - (std::ptrdiff_t) IntPC(3));
           }
 
           break;
@@ -685,14 +723,14 @@ void Thread::run() {
           break;
         }
 
-        case OpUnifyXK: {
-          unify(vm, XPC(1), KPC(2));
+        case OpUnifyXG: {
+          unify(vm, XPC(1), GPC(2));
           advancePC(2);
           break;
         }
 
-        case OpUnifyXG: {
-          unify(vm, XPC(1), GPC(2));
+        case OpUnifyXK: {
+          unify(vm, XPC(1), KPC(2));
           advancePC(2);
           break;
         }
@@ -1073,10 +1111,9 @@ void Thread::run() {
 #include "emulate-inline.cc"
 
         default: {
-          assert(false);
-          std::cerr << "Bad opcode: " << op << "\n";
-          terminate();
-          return;
+          /* We really should not come here, but raising a proper exception
+           * helps in debugging. */
+          raiseKernelError(vm, MOZART_STR("badOpCode"), (nativeint) op);
         }
       } // Big switch testing the opcode
 
@@ -1226,6 +1263,12 @@ void Thread::sendMsg(RichNode target, RichNode labelOrArity, size_t width,
   if (target.isTransient())
     waitFor(vm, target);
 
+  /* Make it stable now, because if the target happens to be referencing x(0),
+   * the overriding of x(0) with the message, below, will break the node
+   * referenced by target!
+   */
+  target.ensureStable(vm);
+
   using namespace patternmatching;
 
   UnstableNode message;
@@ -1304,8 +1347,6 @@ void Thread::patternMatch(VM vm, RichNode value, RichNode patterns,
       raiseTypeError(vm, MOZART_STR("pattern"), patternList[index]);
     }
 
-    assert(jumpOffset >= 0);
-
     if (mozart::patternMatch(vm, value, pattern, xregs->getArray())) {
       advancePC(2 + jumpOffset);
       return;
@@ -1326,8 +1367,8 @@ void Thread::applyFail(VM vm,
     vm->getCurrentSpace()->fail(vm);
   } else {
     UnstableNode error = buildRecord(
-      vm, buildArity(vm, vm->coreatoms.error, 1, vm->coreatoms.debug),
-      vm->coreatoms.failure, unit);
+      vm, buildArity(vm, vm->coreatoms.failure, vm->coreatoms.debug),
+      unit);
 
     applyRaise(vm, error,
                abstraction, PC, yregCount, xregs, yregs, gregs, kregs);
@@ -1398,7 +1439,10 @@ void Thread::applyRaise(VM vm, RichNode exception,
     } else {
       // Uncaught exception
       std::cout << "Uncaught exception" << std::endl;
-      std::cout << repr(vm, (*xregs)[0], 100) << std::endl;
+      std::cout << repr(vm, (*xregs)[0], 20, 20) << std::endl;
+
+      UnstableNode stackTrace = stack.buildStackTrace(vm, abstraction, PC);
+      std::cout << repr(vm, stackTrace, 30, 20) << std::endl;
 
       terminate();
     }
@@ -1472,6 +1516,12 @@ void Thread::terminate() {
 
   auto unitNode = build(vm, unit);
   DataflowVariable(_terminationVar).bind(vm, unitNode);
+}
+
+void Thread::dump() {
+  std::cerr << "Thread " << this << ", runnable:" << isRunnable() << std::endl;
+  UnstableNode stackTrace = stack.buildStackTrace(vm, nullptr, nullptr);
+  std::cerr << repr(vm, stackTrace) << std::endl;
 }
 
 }

@@ -22,63 +22,53 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef __PROTECT_H
-#define __PROTECT_H
+#ifndef __REIFIEDGNODE_DECL_H
+#define __REIFIEDGNODE_DECL_H
 
-#include "protect-decl.hh"
-#include "vm-decl.hh"
+#include "mozartcore-decl.hh"
 
 namespace mozart {
 
-inline ProtectedNode ProtectedNodesContainer::protect(VM vm, StableNode* node_ptr) {
-  StableNode** ptr = new StableNode*(node_ptr);
-  _nodes.insert(ptr);
-  return ProtectedNode(ptr);
-}
+//////////////////
+// ReifiedGNode //
+//////////////////
 
-inline ProtectedNode ProtectedNodesContainer::protect(VM vm, RichNode node) {
-  return protect(vm, node.getStableRef(vm));
-}
-
-inline ProtectedNode ProtectedNodesContainer::protect(VM vm, StableNode& node) {
-  return protect(vm, &node);
-}
-
-inline ProtectedNode ProtectedNodesContainer::protect(VM vm, UnstableNode& node) {
-  StableNode* node_ptr = new (vm) StableNode;
-  node_ptr->init(vm, node);
-  return protect(vm, node_ptr);
-}
-
-inline ProtectedNode ProtectedNodesContainer::protect(VM vm, UnstableNode&& node) {
-  StableNode* node_ptr = new (vm) StableNode;
-  node_ptr->init(vm, std::move(node));
-  return protect(vm, node_ptr);
-}
-
-inline void ProtectedNodesContainer::unprotect(ProtectedNode pp_node) {
-  if (_nodes.erase(pp_node._node)) {
-    delete pp_node._node;
-  }
-}
-
-inline void ProtectedNodesContainer::gCollect(GC gc) {
-  for (auto node : _nodes) {
-    gc->copyStableRef(*node, *node);
-  }
-}
-
-template <typename T>
-ProtectedNode ozProtect(VM vm, T&& node)
-{
-  return vm->_protectedNodes.protect(vm, std::forward<T>(node));
-}
-
-void ozUnprotect(VM vm, ProtectedNode pp_node)
-{
-  vm->_protectedNodes.unprotect(pp_node);
-}
-
-}
-
+#ifndef MOZART_GENERATOR
+#include "ReifiedGNode-implem-decl.hh"
 #endif
+
+class ReifiedGNode: public DataType<ReifiedGNode>,
+  StoredAs<GlobalNode*>, WithValueBehavior {
+public:
+  static atom_t getTypeAtom(VM vm) {
+    return vm->getAtom(MOZART_STR("gNode"));
+  }
+
+  explicit ReifiedGNode(GlobalNode* value): _value(value) {}
+
+  static void create(GlobalNode*& self, VM vm, GlobalNode* value) {
+    self = value;
+  }
+
+  inline
+  static void create(GlobalNode*& self, VM vm, GR gr, ReifiedGNode from);
+
+public:
+  GlobalNode* value() const {
+    return _value;
+  }
+
+  inline
+  bool equals(VM vm, RichNode right);
+
+private:
+  GlobalNode* _value;
+};
+
+#ifndef MOZART_GENERATOR
+#include "ReifiedGNode-implem-decl-after.hh"
+#endif
+
+}
+
+#endif // __REIFIEDGNODE_DECL_H

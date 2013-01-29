@@ -47,7 +47,7 @@ public:
   public:
     Is(): Builtin("is") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       result = build(vm, RecordLike(value).isRecord(vm));
     }
   };
@@ -56,7 +56,7 @@ public:
   public:
     Label(): Builtin("label") {}
 
-    void operator()(VM vm, In record, Out result) {
+    static void call(VM vm, In record, Out result) {
       result = RecordLike(record).label(vm);
     }
   };
@@ -65,7 +65,7 @@ public:
   public:
     Width(): Builtin("width") {}
 
-    void operator()(VM vm, In record, Out result) {
+    static void call(VM vm, In record, Out result) {
       result = build(vm, RecordLike(record).width(vm));
     }
   };
@@ -74,7 +74,7 @@ public:
   public:
     Arity(): Builtin("arity") {}
 
-    void operator()(VM vm, In record, Out result) {
+    static void call(VM vm, In record, Out result) {
       result = RecordLike(record).arityList(vm);
     }
   };
@@ -83,7 +83,7 @@ public:
   public:
     Clone(): Builtin("clone") {}
 
-    void operator()(VM vm, In record, Out result) {
+    static void call(VM vm, In record, Out result) {
       result = RecordLike(record).clone(vm);
     }
   };
@@ -92,7 +92,7 @@ public:
   public:
     WaitOr(): Builtin("waitOr") {}
 
-    void operator()(VM vm, In record, Out result) {
+    static void call(VM vm, In record, Out result) {
       result = RecordLike(record).waitOr(vm);
     }
   };
@@ -101,7 +101,7 @@ public:
   public:
     MakeDynamic(): Builtin("makeDynamic") {}
 
-    void operator()(VM vm, In label, In contents, Out result) {
+    static void call(VM vm, In label, In contents, Out result) {
       using namespace patternmatching;
 
       size_t contentsWidth = 0;
@@ -132,12 +132,13 @@ public:
   public:
     Test(): Builtin("test") {}
 
-    void operator()(VM vm, In value, In patLabel, In patFeatures, Out result) {
+    static void call(VM vm, In value, In patLabel, In patFeatures, Out result) {
       using namespace patternmatching;
 
+      UnstableNode falseNode(vm, false);
       UnstableNode patArityUnstable;
-      ModCompilerSupport::MakeArityDynamic::builtin()(
-        vm, patLabel, patFeatures, patArityUnstable);
+      ModCompilerSupport::MakeArityDynamic::call(
+        vm, patLabel, patFeatures, falseNode, patArityUnstable);
       RichNode patArity = patArityUnstable;
 
       if (patArity.is<Boolean>()) {
@@ -155,7 +156,7 @@ public:
   public:
     TestLabel(): Builtin("testLabel") {}
 
-    void operator()(VM vm, In value, In patLabel, Out result) {
+    static void call(VM vm, In value, In patLabel, Out result) {
       result = build(vm, RecordLike(value).testLabel(vm, patLabel));
     }
   };
@@ -164,13 +165,76 @@ public:
   public:
     TestFeature(): Builtin("testFeature") {}
 
-    void operator()(VM vm, In value, In patFeature, Out found, Out fieldValue) {
+    static void call(VM vm, In value, In patFeature,
+                     Out found, Out fieldValue) {
       if (Dottable(value).lookupFeature(vm, patFeature, fieldValue)) {
         found = build(vm, true);
       } else {
         found = build(vm, false);
         fieldValue = build(vm, unit);
       }
+    }
+  };
+
+  // Some operations that can be implemented much more efficiently in C++
+
+  class AdjoinAtIfHasFeature: public Builtin<AdjoinAtIfHasFeature> {
+  public:
+    AdjoinAtIfHasFeature(): Builtin("adjoinAtIfHasFeature") {}
+
+    static void call(VM vm, In record, In feature, In fieldValue,
+                     Out result, Out success) {
+      using namespace patternmatching;
+
+      if (!RecordLike(record).isRecord(vm))
+        raiseTypeError(vm, MOZART_STR("record"), record);
+
+      if (!Dottable(record).hasFeature(vm, feature)) {
+        result = build(vm, unit);
+        success = build(vm, false);
+        return;
+      }
+
+      size_t width, featureIndex;
+      StaticArray<StableNode> srcElements, destElements;
+
+      if (record.is<Tuple>()) {
+        auto srcTuple = record.as<Tuple>();
+        width = srcTuple.getWidth();
+        result = Tuple::build(vm, width, *srcTuple.getLabel());
+        featureIndex = getArgument<nativeint>(vm, feature) - 1;
+
+        srcElements = srcTuple.getElementsArray();
+        destElements = RichNode(result).as<Tuple>().getElementsArray();
+      } else if (record.is<Cons>()) {
+        auto srcCons = record.as<Cons>();
+        width = 2;
+        result = Cons::build(vm);
+        featureIndex = getArgument<nativeint>(vm, feature) - 1;
+
+        srcElements = srcCons.getElementsArray();
+        destElements = RichNode(result).as<Cons>().getElementsArray();
+      } else {
+        assert(record.is<Record>());
+
+        auto srcRecord = record.as<Record>();
+        width = srcRecord.getWidth();
+        StableNode& arity = *srcRecord.getArity();
+        result = Record::build(vm, width, arity);
+        RichNode(arity).as<mozart::Arity>().lookupFeature(vm, feature, featureIndex);
+
+        srcElements = srcRecord.getElementsArray();
+        destElements = RichNode(result).as<Record>().getElementsArray();
+      }
+
+      for (size_t i = 0; i < width; ++i) {
+        if (i == featureIndex)
+          destElements[i].init(vm, fieldValue);
+        else
+          destElements[i].init(vm, srcElements[i]);
+      }
+
+      success = build(vm, true);
     }
   };
 };

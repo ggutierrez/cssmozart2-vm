@@ -45,7 +45,7 @@ public:
   public:
     FeatureLess(): Builtin("featureLess") {}
 
-    void operator()(VM vm, In lhs, In rhs, Out result) {
+    static void call(VM vm, In lhs, In rhs, Out result) {
       requireFeature(vm, lhs);
       requireFeature(vm, rhs);
 
@@ -57,8 +57,8 @@ public:
   public:
     NewCodeArea(): Builtin("newCodeArea") {}
 
-    void operator()(VM vm, In byteCodeList, In arity, In XCount, In KsList,
-                    In printName, In debugData, Out result) {
+    static void call(VM vm, In byteCodeList, In arity, In XCount, In KsList,
+                     In printName, In debugData, Out result) {
       // Read byte code
       std::vector<ByteCode> byteCode;
 
@@ -74,13 +74,14 @@ public:
         MOZART_STR("List of byte code elements")
       );
 
+      // Apparently the compiler wants to give us NamedNames sometimes
+      if (printName.is<NamedName>())
+        printName = printName.as<NamedName>().getPrintName();
+
       // Read scalar args
-      auto intArity = getArgument<nativeint>(vm, arity,
-                                             MOZART_STR("positive integer"));
-      auto intXCount = getArgument<nativeint>(vm, XCount,
-                                              MOZART_STR("positive integer"));
-      auto atomPrintName = getArgument<atom_t>(vm, printName,
-                                               MOZART_STR("Atom"));
+      auto intArity = getArgument<nativeint>(vm, arity);
+      auto intXCount = getArgument<nativeint>(vm, XCount);
+      auto atomPrintName = getArgument<atom_t>(vm, printName);
 
       // Read number of K registers
       size_t KCount = ozListLength(vm, KsList);
@@ -105,7 +106,7 @@ public:
   public:
     NewAbstraction(): Builtin("newAbstraction") {}
 
-    void operator()(VM vm, In body, In GsList, Out result) {
+    static void call(VM vm, In body, In GsList, Out result) {
       // Check the type of the code area
       if (!CodeAreaProvider(body).isCodeAreaProvider(vm))
         raiseTypeError(vm, MOZART_STR("Code area"), body);
@@ -127,15 +128,47 @@ public:
     }
   };
 
+  class SetUUID: public Builtin<SetUUID> {
+  public:
+    SetUUID(): Builtin("setUUID") {}
+
+    static void call(VM vm, In value, In uuid) {
+      auto uuidValue = getArgument<UUID>(vm, uuid);
+
+      if (value.is<CodeArea>()) {
+        value.as<CodeArea>().setUUID(vm, uuidValue);
+      } else if (value.is<Abstraction>()) {
+        value.as<Abstraction>().setUUID(vm, uuidValue);
+      } else if (value.isTransient()) {
+        waitFor(vm, value);
+      } else {
+        raiseTypeError(vm, MOZART_STR("Codea area or abstraction"), value);
+      }
+    }
+  };
+
+  class IsArity: public Builtin<IsArity> {
+  public:
+    IsArity(): Builtin("isArity") {}
+
+    static void call(VM vm, In value, Out result) {
+      if (value.isTransient())
+        waitFor(vm, value);
+      result = build(vm, value.is<Arity>());
+    }
+  };
+
   class MakeArityDynamic: public Builtin<MakeArityDynamic> {
   public:
     MakeArityDynamic(): Builtin("makeArityDynamic") {}
 
-    void operator()(VM vm, In label, In features, Out result) {
+    static void call(VM vm, In label, In features, In force, Out result) {
       using namespace patternmatching;
 
       size_t width = 0;
       StaticArray<StableNode> featuresData;
+
+      auto doForce = getArgument<bool>(vm, force);
 
       if (matchesVariadicSharp(vm, features, width, featuresData)) {
         auto unstableFeatures = vm->newStaticArray<UnstableNode>(width);
@@ -145,10 +178,16 @@ public:
         auto arity = buildArityDynamic(vm, label, width,
                                        (UnstableNode*) unstableFeatures);
 
-        if (RichNode(arity).is<Unit>())
-          result = build(vm, false);
-        else
+        if (!RichNode(arity).is<Unit>())
           result = std::move(arity);
+        else if (!doForce)
+          result = build(vm, false);
+        else {
+          result = Arity::build(vm, width, label);
+          auto elements = RichNode(result).as<Arity>().getElementsArray();
+          for (size_t i = 0; i < width; ++i)
+            elements[i].init(vm, i+1);
+        }
 
         vm->deleteStaticArray(unstableFeatures, width);
       } else {
@@ -157,22 +196,105 @@ public:
     }
   };
 
-  class NewPatPatWildcard: public Builtin<NewPatPatWildcard> {
+  class MakeRecordFromArity: public Builtin<MakeRecordFromArity> {
   public:
-    NewPatPatWildcard(): Builtin("newPatMatWildcard") {}
+    MakeRecordFromArity(): Builtin("makeRecordFromArity") {}
 
-    void operator()(VM vm, Out result) {
+    static void call(VM vm, In arity, In fields, Out result) {
+      using namespace patternmatching;
+
+      if (!arity.is<Arity>()) {
+        if (arity.isTransient())
+          waitFor(vm, arity);
+        raiseTypeError(vm, MOZART_STR("Arity"), arity);
+      }
+
+      size_t width;
+      StaticArray<StableNode> fieldsData;
+
+      if (matchesVariadicSharp(vm, fields, width, fieldsData)) {
+        if (width != arity.as<Arity>().getWidth())
+          raiseKernelError(vm, MOZART_STR("widthMismatch"), arity, width);
+
+        result = Record::build(vm, width, arity);
+        auto elements = RichNode(result).as<Record>().getElementsArray();
+
+        for (size_t i = 0; i < width; ++i)
+          elements[i].init(vm, fieldsData[i]);
+      } else {
+        raiseTypeError(vm, MOZART_STR("#-tuple"), fields);
+      }
+    }
+  };
+
+  class NewPatMatWildcard: public Builtin<NewPatMatWildcard> {
+  public:
+    NewPatMatWildcard(): Builtin("newPatMatWildcard") {}
+
+    static void call(VM vm, Out result) {
       result = PatMatCapture::build(vm, -1);
     }
   };
 
-  class NewPatPatCapture: public Builtin<NewPatPatCapture> {
+  class NewPatMatCapture: public Builtin<NewPatMatCapture> {
   public:
-    NewPatPatCapture(): Builtin("newPatMatCapture") {}
+    NewPatMatCapture(): Builtin("newPatMatCapture") {}
 
-    void operator()(VM vm, In index, Out result) {
+    static void call(VM vm, In index, Out result) {
       auto intIndex = getArgument<nativeint>(vm, index, MOZART_STR("Integer"));
       result = PatMatCapture::build(vm, intIndex);
+    }
+  };
+
+  class NewPatMatConjunction: public Builtin<NewPatMatConjunction> {
+  public:
+    NewPatMatConjunction(): Builtin("newPatMatConjunction") {}
+
+    static void call(VM vm, In parts, Out result) {
+      using namespace patternmatching;
+
+      size_t width = 0;
+      StaticArray<StableNode> partsData;
+
+      if (matchesVariadicSharp(vm, parts, width, partsData)) {
+        result = PatMatConjunction::build(vm, width);
+        auto elements = RichNode(result).as<PatMatConjunction>().getElementsArray();
+        for (size_t i = 0; i < width; ++i)
+          elements[i].init(vm, partsData[i]);
+      } else {
+        raiseTypeError(vm, MOZART_STR("#-tuple"), parts);
+      }
+    }
+  };
+
+  class NewPatMatOpenRecord: public Builtin<NewPatMatOpenRecord> {
+  public:
+    NewPatMatOpenRecord(): Builtin("newPatMatOpenRecord") {}
+
+    static void call(VM vm, In arity, In fields, Out result) {
+      using namespace patternmatching;
+
+      if (!arity.is<Arity>()) {
+        if (arity.isTransient())
+          waitFor(vm, arity);
+        raiseTypeError(vm, MOZART_STR("Arity"), arity);
+      }
+
+      size_t width;
+      StaticArray<StableNode> fieldsData;
+
+      if (matchesVariadicSharp(vm, fields, width, fieldsData)) {
+        if (width != arity.as<Arity>().getWidth())
+          raiseKernelError(vm, MOZART_STR("widthMismatch"), arity, width);
+
+        result = PatMatOpenRecord::build(vm, width, arity);
+        auto elements = RichNode(result).as<PatMatOpenRecord>().getElementsArray();
+
+        for (size_t i = 0; i < width; ++i)
+          elements[i].init(vm, fieldsData[i]);
+      } else {
+        raiseTypeError(vm, MOZART_STR("#-tuple"), fields);
+      }
     }
   };
 
@@ -180,7 +302,7 @@ public:
   public:
     IsBuiltin(): Builtin("isBuiltin") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       result = build(vm, BuiltinCallable(value).isBuiltin(vm));
     }
   };
@@ -189,7 +311,7 @@ public:
   public:
     GetBuiltinInfo(): Builtin("getBuiltinInfo") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       BaseBuiltin* builtin = BuiltinCallable(value).getBuiltin(vm);
 
       UnstableNode name = build(vm, builtin->getNameAtom(vm));
@@ -227,7 +349,7 @@ public:
   public:
     IsUniqueName(): Builtin("isUniqueName") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       if (value.isTransient())
         waitFor(vm, value);
 
