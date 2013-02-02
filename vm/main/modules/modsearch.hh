@@ -35,13 +35,16 @@ public:
 	public:
 		DFS(): Builtin("dfs") {}
 
-		void operator()(VM vm, In space) {
+	        void operator()(VM vm, In space, Out result) {
 			if(SpaceLike(space).isSpace(vm)) { 
 				Space* s = SpaceLike(space).space(vm);
 				if(s->hasConstraintSpace()){
 					GecodeSpace& gs = s->getCstSpace();
 					Gecode::DFS<GecodeSpace> e(&gs);
 					GecodeSpace *sol = e.next();
+					Space* cs = s->clone(vm);
+					cs->setCstSpace(*sol);
+					result = ReifiedSpace::build(vm, cs);
 					delete sol;
 				}
 			}

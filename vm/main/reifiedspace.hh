@@ -238,6 +238,10 @@ void ReifiedSpace::killSpace(RichNode self, VM vm) {
 void FailedSpace::create(unit_t& self, VM vm, GR gr, FailedSpace from) {
 }
 
+Space* FailedSpace::space(RichNode self, VM vm) {
+  raise(vm, vm->coreatoms.spaceFailed);
+}
+
 UnstableNode FailedSpace::askSpace(VM vm) {
   return Atom::build(vm, vm->coreatoms.failed);
 }
@@ -269,6 +273,10 @@ void FailedSpace::killSpace(VM vm) {
 #include "MergedSpace-implem.hh"
 
 void MergedSpace::create(unit_t& self, VM vm, GR gr, MergedSpace from) {
+}
+
+Space* MergedSpace::space(RichNode self, VM vm) {
+  raise(vm, vm->coreatoms.spaceMerged);
 }
 
 UnstableNode MergedSpace::askSpace(VM vm) {

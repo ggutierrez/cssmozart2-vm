@@ -118,9 +118,8 @@ public:
     return true;
   }
 
-  Space* space(RichNode self, VM vm) {
-    return vm->getCurrentSpace();   
-  }
+  inline
+  Space* space(RichNode self, VM vm);
 
   inline
   UnstableNode askSpace(VM vm);
@@ -172,9 +171,8 @@ public:
     return true;
   }
 
-  Space* space(RichNode self, VM vm) {
-    return vm->getCurrentSpace();   
-  }
+  inline
+  Space* space(RichNode self, VM vm);
 
   inline
   UnstableNode askSpace(VM vm);

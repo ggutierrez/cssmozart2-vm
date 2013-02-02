@@ -346,6 +346,10 @@ public:
   bool hasConstraintSpace() {
     return _cstSpace != nullptr;
   }
+
+  void setCstSpace(GecodeSpace cstSpace) {
+    _cstSpace = &cstSpace;
+  }
 #endif
 
 // Fields
