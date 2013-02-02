@@ -62,6 +62,10 @@ public:
     return true;
   }
 
+  Space* space(RichNode self, VM vm) {
+    return getSpace();   
+  }
+
   inline
   UnstableNode askSpace(RichNode self, VM vm);
 
@@ -115,6 +119,9 @@ public:
   }
 
   inline
+  Space* space(RichNode self, VM vm);
+
+  inline
   UnstableNode askSpace(VM vm);
 
   inline
@@ -163,6 +170,9 @@ public:
   bool isSpace(VM vm) {
     return true;
   }
+
+  inline
+  Space* space(RichNode self, VM vm);
 
   inline
   UnstableNode askSpace(VM vm);

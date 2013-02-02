@@ -56,5 +56,7 @@
 #include "modules/modproperty.hh"
 #include "modules/modforeignpointer.hh"
 #include "modules/modreflection.hh"
+#include "modules/modintvar.hh"
+#include "modules/modsearch.hh"
 
 #endif // __COREMODULES_H

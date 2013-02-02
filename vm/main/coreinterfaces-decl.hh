@@ -527,6 +527,10 @@ struct Interface<SpaceLike>:
     return false;
   }
 
+  Space* space(RichNode self, VM vm) {
+    raiseTypeError(vm, MOZART_STR("Space"), self);
+  }
+
   UnstableNode askSpace(RichNode self, VM vm) {
     raiseTypeError(vm, MOZART_STR("Space"), self);
   }
