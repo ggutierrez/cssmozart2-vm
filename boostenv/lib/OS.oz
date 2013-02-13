@@ -31,6 +31,10 @@ functor
 
 require
    Boot_OS at 'x-oz://boot/OS'
+   Boot_Reflection at 'x-oz://boot/Reflection'
+
+import
+   BURL at 'x-oz://boot/URL'
 
 export
    % Random number generation
@@ -40,8 +44,10 @@ export
 
    % Environment
    GetEnv
+   PutEnv
 
    % File I/0
+   GetDir
    GetCWD
    Tmpnam
 
@@ -59,12 +65,21 @@ export
    % Sockets
    tcpAcceptorCreate: TCPAcceptorCreate
    tcpAccept: TCPAccept
+   tcpCancelAccept: TCPCancelAccept
    tcpAcceptorClose: TCPAcceptorClose
    tcpConnect: TCPConnect
    tcpConnectionRead: TCPConnectionRead
    tcpConnectionWrite: TCPConnectionWrite
    tcpConnectionShutdown: TCPConnectionShutdown
    tcpConnectionClose: TCPConnectionClose
+
+   % Process management
+   SpawnProcess
+   SpawnProcessAndPipe
+   PipeConnectionRead
+   PipeConnectionWrite
+   PipeConnectionShutdown
+   PipeConnectionClose
 
    % Compatibility
    open: CompatOpen
@@ -90,6 +105,11 @@ export
    sendTo:      CompatSendTo
    receiveFrom: CompatReceiveFrom
 
+   exec: CompatExec
+   pipe: CompatPipe
+   kill: CompatKill
+   wait: CompatWait
+
 define
 
    % Random number generation
@@ -101,15 +121,19 @@ define
    % Environment
 
    GetEnv = Boot_OS.getEnv
+   PutEnv = Boot_OS.putEnv
 
    % File I/0
+
+   fun {GetDir Path}
+      {Map {Boot_OS.getDir Path} AtomToString}
+   end
 
    GetCWD = Boot_OS.getCWD
    Tmpnam = Boot_OS.tmpnam
 
    fun {Fopen FileName Mode}
-      {Boot_OS.fopen {VirtualString.toString FileName}
-       {VirtualString.toString Mode}}
+      {Boot_OS.fopen FileName Mode}
    end
 
    proc {Fread File Max ?Head Tail ?Count}
@@ -117,9 +141,7 @@ define
    end
 
    proc {Fwrite File DataV ?Count}
-      Data = {VirtualString.toString DataV}
-   in
-      {Boot_OS.fwrite File Data ?Count}
+      {Boot_OS.fwrite File DataV ?Count}
    end
 
    Fclose = Boot_OS.fclose
@@ -149,9 +171,7 @@ define
    TCPAcceptorClose = Boot_OS.tcpAcceptorClose
 
    fun {TCPConnect Host Service}
-      {WaitResult {Boot_OS.tcpConnect
-                   {VirtualString.toString Host}
-                   {VirtualString.toString Service}}}
+      {WaitResult {Boot_OS.tcpConnect Host Service}}
    end
 
    proc {TCPConnectionRead Connection Count ?Head Tail ?ReadCount}
@@ -163,13 +183,31 @@ define
    end
 
    fun {TCPConnectionWrite Connection DataV}
-      Data = {VirtualString.toString DataV}
-   in
-      {WaitResult {Boot_OS.tcpConnectionWrite Connection Data}}
+      {WaitResult {Boot_OS.tcpConnectionWrite Connection DataV}}
    end
 
    TCPConnectionShutdown = Boot_OS.tcpConnectionShutdown
    TCPConnectionClose = Boot_OS.tcpConnectionClose
+
+   %% Process management
+
+   SpawnProcess = Boot_OS.exec
+   SpawnProcessAndPipe = Boot_OS.pipe
+
+   proc {PipeConnectionRead Connection Count ?Head Tail ?ReadCount}
+      case {Boot_OS.pipeConnectionRead Connection Count Tail}
+      of succeeded(C H) then
+         Head = H
+         ReadCount = C
+      end
+   end
+
+   fun {PipeConnectionWrite Connection DataV}
+      {WaitResult {Boot_OS.pipeConnectionWrite Connection DataV}}
+   end
+
+   PipeConnectionShutdown = Boot_OS.pipeConnectionShutdown
+   PipeConnectionClose = Boot_OS.pipeConnectionClose
 
    %% POSIX-like file descriptor management
 
@@ -212,10 +250,6 @@ define
             {Dictionary.remove DescDict I}
          end
       end
-
-      DescStdin = {AllocDesc Stdin}
-      DescStdout = {AllocDesc Stdout}
-      DescStderr = {AllocDesc Stderr}
    end
 
    %% POSIX-like generic compatibility layer
@@ -232,12 +266,20 @@ define
       end
    end
 
+   fun {PatchVS Data}
+      if {Not {IsVirtualByteString Data}} andthen {IsVirtualString Data} then
+         {Coders.encode Data [latin1]}
+      else
+         Data
+      end
+   end
+
    proc {CompatRead FD Max ?Head Tail ?Count}
       {{DescGet FD} read(Max ?Head Tail ?Count)}
    end
 
    proc {CompatWrite FD Data ?Count}
-      {{DescGet FD} write(Data ?Count)}
+      {{DescGet FD} write({PatchVS Data} ?Count)}
    end
 
    proc {CompatLSeek FD Whence Offset ?Where}
@@ -317,6 +359,10 @@ define
    in
       {New CompatFileClass init(File desc:$) _}
    end
+
+   DescStdin = {New CompatFileClass init(Stdin desc:$) _}
+   DescStdout = {New CompatFileClass init(Stdout desc:$) _}
+   DescStderr = {New CompatFileClass init(Stderr desc:$) _}
 
    fun {CompatFileDesc DescName}
       case DescName
@@ -462,15 +508,92 @@ define
    end
 
    proc {CompatSend Sock Msg Flags ?Len}
-      {{DescGet Sock} send(Msg Flags ?Len)}
+      {{DescGet Sock} send({PatchVS Msg} Flags ?Len)}
    end
 
    proc {CompatSendTo Sock Msg Flags Host Port ?Len}
-      {{DescGet Sock} sendTo(Msg Flags Host Port ?Len)}
+      {{DescGet Sock} sendTo({PatchVS Msg} Flags Host Port ?Len)}
    end
 
    proc {CompatReceiveFrom Sock Max Flags ?Head Tail ?Host ?Port ?Len}
       {{DescGet Sock} receiveFrom(Max Flags ?Head Tail ?Host ?Port ?Len)}
+   end
+
+   %% POSIX-like process management
+
+   class CompatPipeConnectionClass from CompatIOClass
+      attr
+         connection
+
+      meth init(Connection desc:Desc <= _)
+         CompatIOClass, init(desc:Desc)
+
+         connection := Connection
+      end
+
+      meth read(Max ?Head Tail ?Count)
+         {PipeConnectionRead @connection Max ?Head Tail ?Count}
+      end
+
+      meth write(Data ?Count)
+         {PipeConnectionWrite @connection Data ?Count}
+      end
+
+      meth shutDown(How)
+         What = case How
+                of 0 then receive
+                [] 1 then send
+                else both
+                end
+      in
+         {TCPConnectionShutdown @connection What}
+      end
+
+      meth close()
+         CompatIOClass, close()
+         {PipeConnectionClose @connection}
+      end
+   end
+
+   proc {CompatExec Executable Args DoKill ?Pid}
+      {SpawnProcess Executable Executable|Args DoKill ?Pid}
+   end
+
+   proc {CompatPipe Executable Args ?Pid ?Status}
+      Connection = {SpawnProcessAndPipe Executable Executable|Args ?Pid}
+      Desc = {New CompatPipeConnectionClass init(Connection desc:$) _}
+   in
+      Status = Desc#Desc
+   end
+
+   proc {CompatKill Pid Signal ?Status}
+      % TODO
+      Status = 0
+   end
+
+   proc {CompatWait ?Pid ?Status}
+      % TODO
+      Status = 0
+   end
+
+   %% Set up a non-stub BURL
+
+   local
+      fun {BURL_localize URL}
+         try
+            {Fclose {Fopen URL "rb"}}
+            old(URL)
+         catch system(os(os _ _ Msg) ...) then
+            raise system(url(localize Msg URL) debug:unit) end
+         end
+      end
+
+      fun {BURL_open URL}
+         {CompatOpen URL ['O_RDONLY'] nil}
+      end
+   in
+      {Boot_Reflection.become BURL.localize BURL_localize}
+      {Boot_Reflection.become BURL.open BURL_open}
    end
 
 end

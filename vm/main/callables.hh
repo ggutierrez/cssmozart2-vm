@@ -48,13 +48,13 @@ bool BuiltinProcedure::equals(VM vm, RichNode right) {
 
 void BuiltinProcedure::callBuiltin(VM vm, size_t argc, UnstableNode* args[]) {
   assert(argc == getArity());
-  return _builtin->call(vm, args);
+  return _builtin->callBuiltin(vm, args);
 }
 
 template <class... Args>
 void BuiltinProcedure::callBuiltin(VM vm, Args&&... args) {
   assert(sizeof...(args) == getArity());
-  return _builtin->call(vm, std::forward<Args>(args)...);
+  return _builtin->callBuiltin(vm, std::forward<Args>(args)...);
 }
 
 size_t BuiltinProcedure::procedureArity(VM vm) {
@@ -75,6 +75,11 @@ void BuiltinProcedure::getDebugInfo(
   debugData = mozart::build(vm, unit);
 }
 
+UnstableNode BuiltinProcedure::serialize(VM vm, SE se) {
+  return buildTuple(vm, MOZART_STR("builtin"),
+                    _builtin->getModuleNameAtom(vm), _builtin->getNameAtom(vm));
+}
+
 /////////////////
 // Abstraction //
 /////////////////
@@ -82,7 +87,8 @@ void BuiltinProcedure::getDebugInfo(
 #include "Abstraction-implem.hh"
 
 Abstraction::Abstraction(VM vm, size_t Gc, RichNode body)
-  : WithHome(vm), _Gc(Gc) {
+  : WithHome(vm), _gnode(nullptr), _Gc(Gc) {
+
   _body.init(vm, body);
   _codeAreaCacheValid = false;
 
@@ -95,6 +101,7 @@ Abstraction::Abstraction(VM vm, size_t Gc, RichNode body)
 Abstraction::Abstraction(VM vm, size_t Gc, GR gr, Abstraction& from):
   WithHome(vm, gr, from) {
 
+  gr->copyGNode(_gnode, from._gnode);
   gr->copyStableNode(_body, from._body);
   _Gc = Gc;
 
@@ -126,7 +133,8 @@ void Abstraction::getDebugInfo(VM vm, atom_t& printName,
   return CodeAreaProvider(_body).getCodeAreaDebugInfo(vm, printName, debugData);
 }
 
-void Abstraction::printReprToStream(VM vm, std::ostream& out, int depth) {
+void Abstraction::printReprToStream(VM vm, std::ostream& out,
+                                    int depth, int width) {
   MOZART_TRY(vm) {
     ensureCodeAreaCacheValid(vm);
 
@@ -141,6 +149,28 @@ void Abstraction::printReprToStream(VM vm, std::ostream& out, int depth) {
   } MOZART_CATCH(vm, kind, node) {
     out << "<P/?>";
   } MOZART_ENDTRY(vm);
+}
+
+UnstableNode Abstraction::serialize(VM vm, SE se) {
+  UnstableNode r = makeTuple(vm, MOZART_STR("abstraction"), _Gc+1);
+  auto elements=RichNode(r).as<Tuple>().getElementsArray();
+  for (size_t i=0; i< _Gc; ++i) {
+    se->copy(elements[i], getElements(i));
+  }
+  se->copy(elements[_Gc], _body);
+  return r;
+}
+
+GlobalNode* Abstraction::globalize(RichNode self, VM vm) {
+  if (_gnode == nullptr) {
+    _gnode = GlobalNode::make(vm, self, MOZART_STR("immval"));
+  }
+  return _gnode;
+}
+
+void Abstraction::setUUID(RichNode self, VM vm, const UUID& uuid) {
+  assert(_gnode == nullptr);
+  _gnode = GlobalNode::make(vm, uuid, self, MOZART_STR("immval"));
 }
 
 void Abstraction::ensureCodeAreaCacheValid(VM vm) {

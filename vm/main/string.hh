@@ -233,19 +233,9 @@ bool String::lookupFeature(RichNode self, VM vm, nativeint feature,
   return true;
 }
 
-// VirtualString ---------------------------------------------------------------
-
-void String::toString(VM vm, std::basic_ostream<nchar>& sink) {
-  sink << _string;
-}
-
-nativeint String::vsLength(VM vm) {
-  return codePointCount(_string);
-}
-
 // Miscellaneous ---------------------------------------------------------------
 
-void String::printReprToStream(VM vm, std::ostream& out, int depth) {
+void String::printReprToStream(VM vm, std::ostream& out, int depth, int width) {
   out << '"' << toUTF<char>(_string) << '"';
 }
 

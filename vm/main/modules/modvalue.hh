@@ -45,7 +45,7 @@ public:
   public:
     Dot(): Builtin(".") {}
 
-    void operator()(VM vm, In value, In feature, Out result) {
+    static void call(VM vm, In value, In feature, Out result) {
       result = Dottable(value).dot(vm, feature);
     }
   };
@@ -54,7 +54,7 @@ public:
   public:
     DotAssign(): Builtin("dotAssign") {}
 
-    void operator()(VM vm, In value, In feature, In newValue) {
+    static void call(VM vm, In value, In feature, In newValue) {
       DotAssignable(value).dotAssign(vm, feature, newValue);
     }
   };
@@ -63,7 +63,7 @@ public:
   public:
     DotExchange(): Builtin("dotExchange") {}
 
-    void operator()(VM vm, In value, In feature, In newValue, Out oldValue) {
+    static void call(VM vm, In value, In feature, In newValue, Out oldValue) {
       oldValue = DotAssignable(value).dotExchange(vm, feature, newValue);
     }
   };
@@ -72,7 +72,7 @@ public:
   public:
     CatAccess(): Builtin("catAccess") {}
 
-    void operator()(VM vm, In reference, Out result) {
+    static void call(VM vm, In reference, Out result) {
       catHelper(vm, reference,
         [&result] (VM vm, Dottable dottable, RichNode feature) {
           result = dottable.dot(vm, feature);
@@ -88,7 +88,7 @@ public:
   public:
     CatAssign(): Builtin("catAssign") {}
 
-    void operator()(VM vm, In reference, In newValue) {
+    static void call(VM vm, In reference, In newValue) {
       catHelper(vm, reference,
         [newValue] (VM vm, DotAssignable dotAssignable, RichNode feature) {
           dotAssignable.dotAssign(vm, feature, newValue);
@@ -104,7 +104,7 @@ public:
   public:
     CatExchange(): Builtin("catExchange") {}
 
-    void operator()(VM vm, In reference, In newValue, Out oldValue) {
+    static void call(VM vm, In reference, In newValue, Out oldValue) {
       catHelper(vm, reference,
         [newValue, &oldValue] (VM vm, DotAssignable dotAssignable,
                                RichNode feature) {
@@ -121,7 +121,7 @@ public:
   public:
     CatAccessOO(): Builtin("catAccessOO") {}
 
-    void operator()(VM vm, In self, In reference, Out result) {
+    static void call(VM vm, In self, In reference, Out result) {
       catOOHelper(vm, self, reference,
         [&result] (VM vm, Dottable dottable, RichNode feature) {
           result = dottable.dot(vm, feature);
@@ -140,7 +140,7 @@ public:
   public:
     CatAssignOO(): Builtin("catAssignOO") {}
 
-    void operator()(VM vm, In self, In reference, In newValue) {
+    static void call(VM vm, In self, In reference, In newValue) {
       catOOHelper(vm, self, reference,
         [newValue] (VM vm, DotAssignable dotAssignable, RichNode feature) {
           dotAssignable.dotAssign(vm, feature, newValue);
@@ -159,7 +159,7 @@ public:
   public:
     CatExchangeOO(): Builtin("catExchangeOO") {}
 
-    void operator()(VM vm, In self, In reference, In newValue, Out oldValue) {
+    static void call(VM vm, In self, In reference, In newValue, Out oldValue) {
       catOOHelper(vm, self, reference,
         [newValue, &oldValue] (VM vm, DotAssignable dotAssignable,
                                RichNode feature) {
@@ -179,7 +179,7 @@ public:
   public:
     EqEq(): Builtin("==") {}
 
-    void operator()(VM vm, In left, In right, Out result) {
+    static void call(VM vm, In left, In right, Out result) {
       result = build(vm, equals(vm, left, right));
     }
   };
@@ -188,7 +188,7 @@ public:
   public:
     NotEqEq(): Builtin("\\=") {}
 
-    void operator()(VM vm, In left, In right, Out result) {
+    static void call(VM vm, In left, In right, Out result) {
       result = build(vm, !equals(vm, left, right));
     }
   };
@@ -197,7 +197,7 @@ public:
   public:
     Wait(): Builtin("wait") {}
 
-    void operator()(VM vm, In value) {
+    static void call(VM vm, In value) {
       if (value.isTransient())
         waitFor(vm, value);
     }
@@ -207,7 +207,7 @@ public:
   public:
     WaitQuiet(): Builtin("waitQuiet") {}
 
-    void operator()(VM vm, In value) {
+    static void call(VM vm, In value) {
       if (value.isTransient() && !value.is<FailedValue>())
         waitQuietFor(vm, value);
     }
@@ -217,7 +217,7 @@ public:
   public:
     WaitNeeded(): Builtin("waitNeeded") {}
 
-    void operator()(VM vm, In value) {
+    static void call(VM vm, In value) {
       if (!DataflowVariable(value).isNeeded(vm))
         waitQuietFor(vm, value);
     }
@@ -227,7 +227,7 @@ public:
   public:
     MakeNeeded(): Builtin("makeNeeded") {}
 
-    void operator()(VM vm, In value) {
+    static void call(VM vm, In value) {
       DataflowVariable(value).markNeeded(vm);
     }
   };
@@ -236,9 +236,10 @@ public:
   public:
     IsFree(): Builtin("isFree") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       result = build(vm, value.isTransient() &&
-        !value.is<ReadOnly>() && !value.is<FailedValue>());
+        !value.is<ReadOnly>() && !value.is<ReadOnlyVariable>() &&
+        !value.is<FailedValue>());
     }
   };
 
@@ -246,7 +247,7 @@ public:
   public:
     IsKinded(): Builtin("isKinded") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       // TODO Update this when we actually have kinded values
       result = build(vm, false);
     }
@@ -256,8 +257,8 @@ public:
   public:
     IsFuture(): Builtin("isFuture") {}
 
-    void operator()(VM vm, In value, Out result) {
-      result = build(vm, value.is<ReadOnly>());
+    static void call(VM vm, In value, Out result) {
+      result = build(vm, value.is<ReadOnly>() || value.is<ReadOnlyVariable>());
     }
   };
 
@@ -265,7 +266,7 @@ public:
   public:
     IsFailed(): Builtin("isFailed") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       result = build(vm, value.is<FailedValue>());
     }
   };
@@ -274,7 +275,7 @@ public:
   public:
     IsDet(): Builtin("isDet") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       result = build(vm, !value.isTransient());
     }
   };
@@ -283,9 +284,9 @@ public:
   public:
     Status(): Builtin("status") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       if (value.isTransient()) {
-        if (value.is<ReadOnly>())
+        if (value.is<ReadOnly>() || value.is<ReadOnlyVariable>())
           result = Atom::build(vm, MOZART_STR("future"));
         else if (value.is<FailedValue>())
           result = Atom::build(vm, MOZART_STR("failed"));
@@ -301,7 +302,7 @@ public:
   public:
     TypeOf(): Builtin("type") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       if (value.isTransient())
         waitFor(vm, value);
 
@@ -313,7 +314,7 @@ public:
   public:
     IsNeeded(): Builtin("isNeeded") {}
 
-    void operator()(VM vm, In value, Out result) {
+    static void call(VM vm, In value, Out result) {
       result = build(vm, DataflowVariable(value).isNeeded(vm));
     }
   };
@@ -322,7 +323,7 @@ public:
   public:
     LowerEqual(): Builtin("=<") {}
 
-    void operator()(VM vm, In left, In right, Out result) {
+    static void call(VM vm, In left, In right, Out result) {
       result = build(vm, Comparable(left).compare(vm, right) <= 0);
     }
   };
@@ -331,7 +332,7 @@ public:
   public:
     LowerThan(): Builtin("<") {}
 
-    void operator()(VM vm, In left, In right, Out result) {
+    static void call(VM vm, In left, In right, Out result) {
       result = build(vm, Comparable(left).compare(vm, right) < 0);
     }
   };
@@ -340,7 +341,7 @@ public:
   public:
     GreaterEqual(): Builtin(">=") {}
 
-    void operator()(VM vm, In left, In right, Out result) {
+    static void call(VM vm, In left, In right, Out result) {
       result = build(vm, Comparable(left).compare(vm, right) >= 0);
     }
   };
@@ -349,7 +350,7 @@ public:
   public:
     GreaterThan(): Builtin(">") {}
 
-    void operator()(VM vm, In left, In right, Out result) {
+    static void call(VM vm, In left, In right, Out result) {
       result = build(vm, Comparable(left).compare(vm, right) > 0);
     }
   };
@@ -358,7 +359,7 @@ public:
   public:
     HasFeature(): Builtin("hasFeature") {}
 
-    void operator()(VM vm, In record, In feature, Out result) {
+    static void call(VM vm, In record, In feature, Out result) {
       result = build(vm, Dottable(record).hasFeature(vm, feature));
     }
   };
@@ -367,7 +368,7 @@ public:
   public:
     CondSelect(): Builtin("condSelect") {}
 
-    void operator()(VM vm, In record, In feature, In def, Out result) {
+    static void call(VM vm, In record, In feature, In def, Out result) {
       result = Dottable(record).condSelect(vm, feature, def);
     }
   };
@@ -376,7 +377,7 @@ public:
   public:
     MakeFailed(): Builtin("failedValue") {}
 
-    void operator()(VM vm, In exception, Out result) {
+    static void call(VM vm, In exception, Out result) {
       result = FailedValue::build(vm, exception.getStableRef(vm));
     }
   };
@@ -385,7 +386,7 @@ public:
   public:
     MakeReadOnly(): Builtin("readOnly") {}
 
-    void operator()(VM vm, In variable, Out result) {
+    static void call(VM vm, In variable, Out result) {
       result = ReadOnly::newReadOnly(vm, variable);
     }
   };
@@ -394,7 +395,7 @@ public:
   public:
     NewReadOnly(): Builtin("newReadOnly") {}
 
-    void operator()(VM vm, Out result) {
+    static void call(VM vm, Out result) {
       result = ReadOnlyVariable::build(vm);
     }
   };
@@ -403,7 +404,7 @@ public:
   public:
     BindReadOnly(): Builtin("bindReadOnly") {}
 
-    void operator()(VM vm, In readOnly, In value) {
+    static void call(VM vm, In readOnly, In value) {
       BindableReadOnly(readOnly).bindReadOnly(vm, value);
     }
   };

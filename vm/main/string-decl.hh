@@ -116,23 +116,10 @@ public:
                      nullable<UnstableNode&> value);
 
 public:
-  // VirtualString inteface
-
-  bool isVirtualString(VM vm) {
-    return true;
-  }
-
-  inline
-  void toString(VM vm, std::basic_ostream<nchar>& sink);
-
-  inline
-  nativeint vsLength(VM vm);
-
-public:
   // Miscellaneous
 
   inline
-  void printReprToStream(VM vm, std::ostream& out, int depth);
+  void printReprToStream(VM vm, std::ostream& out, int depth, int width);
 
 private:
   LString<nchar> _string;

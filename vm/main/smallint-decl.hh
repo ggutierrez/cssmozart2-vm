@@ -117,19 +117,6 @@ public:
   inline
   UnstableNode modValue(VM vm, nativeint b);
 
-public:
-  // VirtualString inteface
-
-  bool isVirtualString(VM vm) {
-    return true;
-  }
-
-  inline
-  void toString(VM vm, std::basic_ostream<nchar>& sink);
-
-  inline
-  nativeint vsLength(VM vm);
-
 #ifdef VM_HAS_CSS
 public:
   // ConstraintVar interface
@@ -159,7 +146,7 @@ public:
 public:
   // Miscellaneous
 
-  void printReprToStream(VM vm, std::ostream& out, int depth) {
+  void printReprToStream(VM vm, std::ostream& out, int depth, int width) {
     out << value();
   }
 

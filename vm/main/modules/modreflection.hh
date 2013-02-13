@@ -45,7 +45,7 @@ public:
   public:
     NewReflectiveEntity(): Builtin("newReflectiveEntity") {}
 
-    void operator()(VM vm, Out stream, Out result) {
+    static void call(VM vm, Out stream, Out result) {
       result = ReflectiveEntity::build(vm, stream);
     }
   };
@@ -54,7 +54,7 @@ public:
   public:
     NewReflectiveVariable(): Builtin("newReflectiveVariable") {}
 
-    void operator()(VM vm, Out stream, Out result) {
+    static void call(VM vm, Out stream, Out result) {
       result = ReflectiveVariable::build(vm, stream);
     }
   };
@@ -63,7 +63,7 @@ public:
   public:
     BindReflectiveVariable(): Builtin("bindReflectiveVariable") {}
 
-    void operator()(VM vm, In variable, In value) {
+    static void call(VM vm, In variable, In value) {
       if (variable.is<ReflectiveVariable>())
         variable.as<ReflectiveVariable>().reflectiveBind(vm, value);
       else
@@ -71,11 +71,28 @@ public:
     }
   };
 
+  class GetStructuralBehavior: public Builtin<GetStructuralBehavior> {
+  public:
+    GetStructuralBehavior(): Builtin("getStructuralBehavior") {}
+
+    static void call(VM vm, In entity, Out result) {
+      auto behavior = entity.type().getStructuralBehavior();
+
+      switch (behavior) {
+        case sbValue: result = build(vm, MOZART_STR("value")); break;
+        case sbStructural: result = build(vm, MOZART_STR("structural")); break;
+        case sbTokenEq: result = build(vm, MOZART_STR("token")); break;
+        case sbVariable: result = build(vm, MOZART_STR("variable")); break;
+        default: assert(false);
+      }
+    }
+  };
+
   class Become: public Builtin<Become> {
   public:
     Become(): Builtin("become") {}
 
-    void operator()(VM vm, In entity, In value) {
+    static void call(VM vm, In entity, In value) {
       auto behavior = entity.type().getStructuralBehavior();
 
       if ((behavior == sbTokenEq) || (behavior == sbVariable)) {

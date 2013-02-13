@@ -31,12 +31,27 @@
 
 namespace mozart {
 
+///////////////////
+// BuiltinModule //
+///////////////////
+
+BuiltinModule::BuiltinModule(VM vm, const nchar* name): _vm(vm) {
+  _name = vm->getAtom(name);
+}
+
+template <typename T>
+void BuiltinModule::initModule(VM vm, T&& module) {
+  _module = vm->protect(std::forward<T>(module));
+}
+
 ////////////////////
 // VirtualMachine //
 ////////////////////
 
+void registerCoreModules(VM vm);
+
 VirtualMachine::VirtualMachine(VirtualMachineEnvironment& environment):
-  environment(environment), gc(this), sc(this) {
+  rootGlobalNode(nullptr), environment(environment), gc(this), sc(this) {
 
   memoryManager.init();
 
@@ -45,6 +60,7 @@ VirtualMachine::VirtualMachine(VirtualMachineEnvironment& environment):
   _currentThread = nullptr;
   _isOnTopLevel = true;
 
+  _builtinModules = new (this) NodeDictionary;
   _propertyRegistry.create(this);
 
   _cleanupList = nullptr;
@@ -57,6 +73,7 @@ VirtualMachine::VirtualMachine(VirtualMachineEnvironment& environment):
 
   initialize();
 
+  registerCoreModules(this);
   _propertyRegistry.initialize(this);
 }
 
@@ -79,6 +96,36 @@ Space* VirtualMachine::cloneSpace(Space* space) {
   return sc.doCloneSpace(space);
 }
 
+void VirtualMachine::registerBuiltinModule(
+  const std::shared_ptr<BuiltinModule>& module) {
+
+  UnstableNode moduleName = build(this, module->getName());
+  UnstableNode* moduleValue;
+  _builtinModules->lookupOrCreate(this, moduleName, moduleValue);
+  moduleValue->copy(this, module);
+}
+
+template <typename T>
+UnstableNode VirtualMachine::findBuiltinModule(T&& name) {
+  UnstableNode nameNode(this, std::forward<T>(name));
+  UnstableNode* moduleNode;
+  if (_builtinModules->lookup(this, nameNode, moduleNode)) {
+    auto module = getPointerArgument<BuiltinModule>(this, *moduleNode,
+                                                    MOZART_STR("BuiltinModule"));
+    return { this, module->getModule() };
+  } else {
+    raiseError(this, MOZART_STR("foreign"),
+               MOZART_STR("cannotFindBootModule"), nameNode);
+  }
+}
+
+template <typename T, typename U>
+UnstableNode VirtualMachine::findBuiltin(T&& moduleName, U&& builtinName) {
+  auto module = findBuiltinModule(std::forward<T>(moduleName));
+  UnstableNode builtinNameNode(this, std::forward<U>(builtinName));
+  return Dottable(module).dot(this, builtinNameNode);
+}
+
 UUID VirtualMachine::genUUID() {
   return environment.genUUID();
 }
@@ -91,6 +138,17 @@ void VirtualMachine::setAlarm(std::int64_t delay, StableNode* wakeable) {
     ++iter;
 
   _alarms.insert_before_new(this, iter, expiration, wakeable);
+}
+
+template <typename T>
+ProtectedNode VirtualMachine::protect(T&& node) {
+  /* Yes, it must always be a *new* StableNode, otherwise protecting twice
+   * the same node fails!
+   */
+  auto result = std::make_shared<StableNode*>(
+    new (this) StableNode(this, std::forward<T>(node)));
+  _protectedNodes.emplace_front(result);
+  return ProtectedNode(std::move(result));
 }
 
 void VirtualMachine::initialize() {
@@ -138,6 +196,7 @@ void VirtualMachine::startGC(GC gc) {
   atomTable = AtomTable();
   aliveThreads = RunnableList();
   _alarms = VMAllocatedList<AlarmRecord>();
+  rootGlobalNode = nullptr;
 
   // Reinitialize the VM
   initialize();
@@ -147,14 +206,15 @@ void VirtualMachine::startGC(GC gc) {
   // Top-level space
   gc->copySpace(_topLevelSpaceRef, _topLevelSpaceRef);
 
-  // Property registry
+  // Builtin modules and property registry
+  _builtinModules = new (this) NodeDictionary(gc, *_builtinModules);
   _propertyRegistry.gCollect(gc);
 
   // Runnable threads
   getThreadPool().gCollect(gc);
 
   // Protected nodes
-  _protectedNodes.gCollect(gc);
+  gcProtectedNodes(gc);
 
   // Pending alarms
   for (auto iter = alarms.begin(); iter != alarms.end(); ++iter) {
@@ -164,6 +224,30 @@ void VirtualMachine::startGC(GC gc) {
 
   // Environmental roots
   environment.gCollect(gc);
+}
+
+void VirtualMachine::gcProtectedNodes(GC gc) {
+  /* Elements that are still referenced somewhere are garbage-collected, and
+   * the StableNode* is updated to point to the GCed node.
+   *
+   * Elements that are not referenced anymore are erased from the list of
+   * protected nodes.
+   */
+
+  auto previous = _protectedNodes.before_begin();
+  auto current = _protectedNodes.begin();
+
+  while (current != _protectedNodes.end()) {
+    auto locked = current->lock();
+    if (locked) {
+      gc->copyStableRef(*locked, *locked);
+      previous = current++;
+    } else {
+      _protectedNodes.erase_after(previous);
+      current = previous;
+      ++current;
+    }
+  }
 }
 
 VMCleanupListNode* VirtualMachine::acquireCleanupList() {

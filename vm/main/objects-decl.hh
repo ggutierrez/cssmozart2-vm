@@ -66,6 +66,11 @@ public:
     return _attrCount;
   }
 
+public:
+  StableNode* getFeaturesRecord() {
+    return &_features;
+  }
+
 private:
   inline
   bool isFreeFlag(VM vm, RichNode value);
@@ -136,7 +141,7 @@ public:
   void getDebugInfo(VM vm, atom_t& printName, UnstableNode& debugData);
 
 public:
-  void printReprToStream(VM vm, std::ostream& out, int depth) {
+  void printReprToStream(VM vm, std::ostream& out, int depth, int width) {
     out << "<Object>";
   }
 

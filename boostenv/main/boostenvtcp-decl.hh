@@ -27,77 +27,27 @@
 
 #include <mozart.hh>
 
-#include <memory>
-
-#include <boost/asio.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/bind.hpp>
+#include "boostenvutils-decl.hh"
 
 namespace mozart { namespace boostenv {
-
-class BoostBasedVM;
 
 ///////////////////
 // TCPConnection //
 ///////////////////
 
-class TCPConnection: public std::enable_shared_from_this<TCPConnection> {
-private:
-  typedef boost::asio::ip::tcp tcp;
+class TCPConnection: public BaseSocketConnection<TCPConnection,
+  boost::asio::ip::tcp> {
+public:
+  inline
+  TCPConnection(BoostBasedVM& environment);
 
 public:
-  typedef std::shared_ptr<TCPConnection> pointer;
-
-  static pointer create(BoostBasedVM& environment) {
-    return pointer(new TCPConnection(environment));
-  }
-
-public:
-  tcp::socket& socket() {
-    return _socket;
-  }
-
-  std::vector<char>& getReadData() {
-    return _readData;
-  }
-
-  std::vector<char>& getWriteData() {
-    return _writeData;
-  }
-
   inline
   void startAsyncConnect(std::string host, std::string service,
                          const ProtectedNode& statusNode);
 
-  inline
-  void startAsyncRead(const ProtectedNode& tailNode,
-                      const ProtectedNode& statusNode);
-
-  inline
-  void startAsyncReadSome(const ProtectedNode& tailNode,
-                          const ProtectedNode& statusNode);
-
-  inline
-  void startAsyncWrite(const ProtectedNode& statusNode);
-
 private:
-  inline
-  TCPConnection(BoostBasedVM& environment);
-
-private:
-  inline
-  void readHandler(const boost::system::error_code& error,
-                   size_t bytes_transferred,
-                   const ProtectedNode& tailNode,
-                   const ProtectedNode& statusNode);
-
-private:
-  BoostBasedVM& _environment;
-  tcp::resolver _resolver;
-  tcp::socket _socket;
-
-  std::vector<char> _readData;
-  std::vector<char> _writeData;
+  protocol::resolver _resolver;
 };
 
 /////////////////

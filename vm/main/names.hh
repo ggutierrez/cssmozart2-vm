@@ -45,6 +45,11 @@ void OptName::makeFeature(RichNode self, VM vm) {
   self.become(vm, GlobalName::build(vm));
 }
 
+GlobalNode* OptName::globalize(RichNode self, VM vm) {
+  self.become(vm, GlobalName::build(vm));
+  return self.as<GlobalName>().globalize(vm);
+}
+
 ////////////////
 // GlobalName //
 ////////////////
@@ -69,6 +74,15 @@ int GlobalName::compareFeatures(VM vm, RichNode right) {
     return -1;
   else
     return 1;
+}
+
+GlobalNode* GlobalName::globalize(RichNode self, VM vm) {
+  GlobalNode* result;
+  if (!GlobalNode::get(vm, _uuid, result)) {
+    result->self.init(vm, self);
+    result->protocol.init(vm, MOZART_STR("immval"));
+  }
+  return result;
 }
 
 ///////////////
@@ -99,6 +113,21 @@ int NamedName::compareFeatures(VM vm, RichNode right) {
     return 1;
 }
 
+UnstableNode NamedName::serialize(VM vm, SE se) {
+  auto result = buildTuple(vm, MOZART_STR("namedname"), OptVar::build(vm));
+  se->copy(RichNode(result).as<Tuple>().getElements(0), _printName);
+  return result;
+}
+
+GlobalNode* NamedName::globalize(RichNode self, VM vm) {
+  GlobalNode* result;
+  if (!GlobalNode::get(vm, _uuid, result)) {
+    result->self.init(vm, self);
+    result->protocol.init(vm, MOZART_STR("immval"));
+  }
+  return result;
+}
+
 ////////////////
 // UniqueName //
 ////////////////
@@ -118,10 +147,13 @@ int UniqueName::compareFeatures(VM vm, RichNode right) {
   return value().compare(right.as<UniqueName>().value());
 }
 
-void UniqueName::printReprToStream(VM vm, std::ostream& out, int depth) {
-  out << "<UniqueName '";
-  out << toUTF<char>(makeLString(value().contents(), value().length()));
-  out << "'>";
+UnstableNode UniqueName::serialize(VM vm, SE se) {
+  return buildTuple(vm, MOZART_STR("uniquename"), atom_t(value()));
+}
+
+void UniqueName::printReprToStream(VM vm, std::ostream& out,
+                                   int depth, int width) {
+  out << value();
 }
 
 }
