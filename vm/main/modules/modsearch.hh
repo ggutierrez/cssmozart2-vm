@@ -15,38 +15,17 @@ class ModSearch: public Module {
 public:
 	ModSearch(): Module("Search") {}
 
-	class Distribute: public Builtin<Distribute> {
-	public:
-		Distribute(): Builtin("distribute") {}
-
-		void operator()(VM vm, In b, In x) {
-			assert(vm->getCurrentSpace()->hasConstraintSpace());
-			atom_t a = getArgument<atom_t>(vm,b,MOZART_STR("Atom"));
-			if (a == vm->coreatoms.naive){
-				GecodeSpace& home = vm->getCurrentSpace()->getCstSpace();
-				Gecode::IntVar& vx = IntVarLike(x).intVar(vm);
-				Gecode::branch(home, vx, Gecode::INT_VAL_MIN);	
-			}
-		}
-
-	};
-
 	class DFS: public Builtin<DFS> {
 	public:
 		DFS(): Builtin("dfs") {}
 
-	        void operator()(VM vm, In space, Out result) {
-			if(SpaceLike(space).isSpace(vm)) { 
-				Space* s = SpaceLike(space).space(vm);
-				if(s->hasConstraintSpace()){
-					GecodeSpace& gs = s->getCstSpace();
-					Gecode::DFS<GecodeSpace> e(&gs);
-					GecodeSpace *sol = e.next();
-					Space* cs = s->clone(vm);
-					cs->setCstSpace(*sol);
-					result = ReifiedSpace::build(vm, cs);
-					delete sol;
-				}
+	    void operator()(VM vm, In space, Out result) {
+			if(ConstraintSpace(space).isConstraintSpace(vm)) { 
+				GecodeSpace& gs = ConstraintSpace(space).constraintSpace(vm);
+				Gecode::DFS<GecodeSpace> e(&gs);
+				GecodeSpace *sol = e.next();
+				// TODO return the solution like a Space
+				delete sol;
 			}
 
 		}

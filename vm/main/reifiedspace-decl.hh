@@ -53,17 +53,22 @@ public:
 
   inline
   static void create(SpaceRef& self, VM vm, GR gr, ReifiedSpace from);
+
 public:
   Space* getSpace() {
     return _space;
   }
+
 public:
+  inline
+  bool isConstraintSpace(RichNode self, VM vm);
+
+  GecodeSpace& constraintSpace(RichNode self, VM vm) {
+    return _space->getCstSpace();
+  }
+  
   bool isSpace(VM vm) {
     return true;
-  }
-
-  Space* space(RichNode self, VM vm) {
-    return getSpace();   
   }
 
   inline
@@ -119,9 +124,6 @@ public:
   }
 
   inline
-  Space* space(RichNode self, VM vm);
-
-  inline
   UnstableNode askSpace(VM vm);
 
   inline
@@ -170,9 +172,6 @@ public:
   bool isSpace(VM vm) {
     return true;
   }
-
-  inline
-  Space* space(RichNode self, VM vm);
 
   inline
   UnstableNode askSpace(VM vm);

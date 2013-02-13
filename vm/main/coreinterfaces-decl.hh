@@ -527,10 +527,6 @@ struct Interface<SpaceLike>:
     return false;
   }
 
-  Space* space(RichNode self, VM vm) {
-    raiseTypeError(vm, MOZART_STR("Space"), self);
-  }
-
   UnstableNode askSpace(RichNode self, VM vm) {
     raiseTypeError(vm, MOZART_STR("Space"), self);
   }
@@ -716,6 +712,21 @@ struct Interface<IntVarLike>:
   UnstableNode isIn(RichNode self, VM vm, RichNode right) {
     raiseTypeError(vm, MOZART_STR("IntVarLike"), self);
   } 
+};
+
+class ConstraintSpace;
+template<>
+struct Interface<ConstraintSpace>:
+  ImplementedBy<ReifiedSpace>,
+  NoAutoReflectiveCalls {
+
+  bool isConstraintSpace(RichNode self, VM vm) {
+    return false;
+  }
+
+  GecodeSpace& constraintSpace(RichNode self, VM vm) {
+    raiseTypeError(vm, MOZART_STR("ConstraintSpace"), self);
+  }
 };
 #endif
 }

@@ -229,6 +229,14 @@ void ReifiedSpace::killSpace(RichNode self, VM vm) {
   space->kill(vm);
 }
 
+bool ReifiedSpace::isConstraintSpace(RichNode self, VM vm) {
+  Space* space = getSpace();
+  if(space->hasConstraintSpace())
+    return true;
+  else
+    return false;
+}
+
 /////////////////
 // FailedSpace //
 /////////////////
@@ -236,10 +244,6 @@ void ReifiedSpace::killSpace(RichNode self, VM vm) {
 #include "FailedSpace-implem.hh"
 
 void FailedSpace::create(unit_t& self, VM vm, GR gr, FailedSpace from) {
-}
-
-Space* FailedSpace::space(RichNode self, VM vm) {
-  raise(vm, vm->coreatoms.spaceFailed);
 }
 
 UnstableNode FailedSpace::askSpace(VM vm) {
@@ -273,10 +277,6 @@ void FailedSpace::killSpace(VM vm) {
 #include "MergedSpace-implem.hh"
 
 void MergedSpace::create(unit_t& self, VM vm, GR gr, MergedSpace from) {
-}
-
-Space* MergedSpace::space(RichNode self, VM vm) {
-  raise(vm, vm->coreatoms.spaceMerged);
 }
 
 UnstableNode MergedSpace::askSpace(VM vm) {

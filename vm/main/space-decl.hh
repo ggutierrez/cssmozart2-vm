@@ -347,10 +347,7 @@ public:
     return _cstSpace != nullptr;
   }
 
-  void setCstSpace(GecodeSpace cstSpace) {
-    _cstSpace = &cstSpace;
-  }
-#endif
+  #endif
 
 // Fields
 

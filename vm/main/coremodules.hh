@@ -58,5 +58,6 @@
 #include "modules/modreflection.hh"
 #include "modules/modintvar.hh"
 #include "modules/modsearch.hh"
+#include "modules/modfdb.hh"
 
 #endif // __COREMODULES_H
