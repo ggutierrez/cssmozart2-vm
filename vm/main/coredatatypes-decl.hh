@@ -57,4 +57,8 @@
 #include "unit-decl.hh"
 #include "variables-decl.hh"
 
+#ifdef VM_HAS_CSS
+#include "cst-intvar-decl.hh"
+#endif
+
 #endif // __COREDATATYPES_DECL_H

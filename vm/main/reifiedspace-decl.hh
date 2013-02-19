@@ -53,11 +53,20 @@ public:
 
   inline
   static void create(SpaceRef& self, VM vm, GR gr, ReifiedSpace from);
+
 public:
   Space* getSpace() {
     return _space;
   }
+
 public:
+  inline
+  bool isConstraintSpace(RichNode self, VM vm);
+
+  GecodeSpace& constraintSpace(RichNode self, VM vm) {
+    return _space->getCstSpace();
+  }
+  
   bool isSpace(VM vm) {
     return true;
   }
