@@ -203,6 +203,11 @@ bool SmallInt::isIntVarLike(VM vm) {
          (value() <= Gecode::Int::Limits::max); 
 }
 
+Gecode::IntVar& SmallInt::intVar(VM vm) {
+  CstIntVar x(vm,value());
+  return x.getVar();
+}
+
 UnstableNode SmallInt::min(VM vm) {
   if(!isIntVarLike(vm))
     raiseTypeError(vm, MOZART_STR("IntVarLike"),value());
