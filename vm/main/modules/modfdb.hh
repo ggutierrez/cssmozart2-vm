@@ -18,7 +18,7 @@ public:
 	public:
 		Distribute(): Builtin("distribute") {}
 
-		void operator()(VM vm, In b, In x) {
+		static void call(VM vm, In b, In x) {
 			assert(vm->getCurrentSpace()->hasConstraintSpace());
 			atom_t a = getArgument<atom_t>(vm,b,MOZART_STR("Atom"));
 			if (a == vm->coreatoms.naive){
