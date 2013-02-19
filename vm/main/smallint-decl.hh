@@ -128,6 +128,9 @@ public:
   bool isIntVarLike(VM vm);
 
   inline
+  Gecode::IntVar& intVar(VM vm);
+  
+  inline
   UnstableNode min(VM vm);
 
   inline

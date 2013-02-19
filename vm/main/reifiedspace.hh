@@ -229,6 +229,14 @@ void ReifiedSpace::killSpace(RichNode self, VM vm) {
   space->kill(vm);
 }
 
+bool ReifiedSpace::isConstraintSpace(RichNode self, VM vm) {
+  Space* space = getSpace();
+  if(space->hasConstraintSpace())
+    return true;
+  else
+    return false;
+}
+
 /////////////////
 // FailedSpace //
 /////////////////

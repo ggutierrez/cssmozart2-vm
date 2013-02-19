@@ -346,7 +346,8 @@ public:
   bool hasConstraintSpace() {
     return _cstSpace != nullptr;
   }
-#endif
+
+  #endif
 
 // Fields
 

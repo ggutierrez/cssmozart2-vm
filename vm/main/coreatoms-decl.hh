@@ -85,7 +85,11 @@ struct CoreAtoms {
   atom_t spaceNoChoice;
   atom_t spaceAltRange;
   atom_t spaceMerged;
+  atom_t spaceFailed;
   atom_t indexOutOfBounds;
+
+  // Distribuitor
+  atom_t naive;
 };
 
 }
