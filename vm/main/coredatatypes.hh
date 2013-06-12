@@ -56,5 +56,10 @@
 #include "string.hh"
 #include "unit.hh"
 #include "variables.hh"
+//#ifdef VM_HAS_CSS
+#include "cstintvar.hh" 
+#include "cstsetvar.hh" 
+#include "cstboolvar.hh" 
+//#endif
 
 #endif // __COREDATATYPES_H

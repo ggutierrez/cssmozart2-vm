@@ -294,11 +294,14 @@ public:
 
       std::FILE* file;
       {
-        std::vector<char> strFileName, strMode;
-        ozVSGetNullTerminated(vm, fileName, fileNameBufSize, strFileName);
+        std::string strFileName;
+        std::vector<char> strMode;
+        ozVSGet(vm, fileName, fileNameBufSize, strFileName);
         ozVSGetNullTerminated(vm, mode, modeBufSize, strMode);
 
-        file = std::fopen(strFileName.data(), strMode.data());
+        boost::filesystem::path filePath(strFileName);
+        file = std::fopen(filePath.make_preferred().string().c_str(),
+                          strMode.data());
       }
 
       if (file == nullptr)
@@ -737,7 +740,7 @@ public:
       for (size_t i = 0; i < argc; i++) {
         if (i != 0)
           scmdline << ' ';
-        scmdline << '\"' << argv[i] << '\"';
+        scmdline << '\"' << argv[i].string << '\"';
       }
       auto cmdline = scmdline.str();
 
@@ -773,7 +776,7 @@ public:
       }
 
       PROCESS_INFORMATION pinf;
-      if (!CreateProcessA(nullptr, const_cast<char*>(cmdline.c_str()),
+      if (!CreateProcessA(executable.string, const_cast<char*>(cmdline.c_str()),
                           nullptr, nullptr, false,
                           doKill ? 0 : DETACHED_PROCESS,
                           nullptr, nullptr, &si, &pinf)) {

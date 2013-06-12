@@ -79,6 +79,26 @@ public:
 
   inline
   void killSpace(RichNode self, VM vm);
+
+  inline
+  void injectSpace(RichNode self, VM vm, RichNode callable);
+
+#ifdef VM_HAS_CSS
+  inline
+  void info(RichNode self, VM vm);
+
+  inline
+  bool isConstraintSpace(RichNode self, VM vm);
+
+  GecodeSpace* constraintSpace(RichNode self, VM vm) {
+    return &_space->getCstSpace();
+  }
+
+  void updateConstraintSpace(RichNode self, VM vm, GecodeSpace* gs) {
+    return _space->updateCstSpace(gs);
+  }
+
+#endif
 private:
   SpaceRef _space;
 };
@@ -131,6 +151,14 @@ public:
 
   inline
   void killSpace(VM vm);
+
+  inline
+  void injectSpace(VM vm, RichNode callable);
+
+#ifdef VM_HAS_CSS
+  inline
+  void info(VM vm);
+#endif
 };
 
 #ifndef MOZART_GENERATOR
@@ -181,6 +209,14 @@ public:
 
   inline
   void killSpace(VM vm);
+
+  inline
+  void injectSpace(VM vm, RichNode callable);
+
+#ifdef VM_HAS_CSS
+  inline
+  void info(VM vm);
+#endif
 };
 
 #ifndef MOZART_GENERATOR

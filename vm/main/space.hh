@@ -85,6 +85,56 @@ namespace internal {
       return new (sc->vm) DummyThread(sc, *this);
     }
   };
+  
+#ifdef VM_HAS_CSS
+  /**
+   * Propagation thread that contains the propagation execution code for
+   * the constraint space associated with a given space.
+   * Create this thread when a constraint space is instantiated (on demand).
+   */
+  class PropagationThread: public Runnable {
+  private:
+    typedef Runnable Super;
+  public:
+    PropagationThread(VM vm, Space* space): Runnable(vm, space) {
+      resume();
+    }
+    
+    PropagationThread(GR gr, PropagationThread& from): Runnable(gr, from) {}
+
+    void run() {
+      //@anfelbar: The next commented code is intented to suspend on the status var
+      //of the mozart space so this thread is called when the space status is
+      //really needed. However, this does not work. Further work has to be done.
+      /*if (!DataflowVariable(*getSpace()->getStatusVar()).isNeeded(vm)){
+	Super::suspendOnVar(vm, *getSpace()->getStatusVar());
+	std::cout << "Runing propagation suspended!!...\n";
+	return;
+	}*/  
+      getSpace()->getCstSpace().propagate();
+      terminate(); 
+    }
+
+    void resume(bool skipSchedule = false) {
+      if (!isRunnable() && !isTerminated())
+        Super::resume(skipSchedule);
+    }
+
+    void suspend(bool skipUnschedule = false) {
+      if (isRunnable() && !isTerminated())
+        Super::suspend(skipUnschedule);
+    }
+
+    Runnable* gCollect(GC gc) {
+      return new (gc->vm) PropagationThread(gc, *this);
+    }
+
+    Runnable* sClone(SC sc) {
+      return new (sc->vm) PropagationThread(sc, *this);
+    }
+  };
+
+#endif
 }
 
 /////////////////
@@ -129,6 +179,7 @@ void Space::constructor(VM vm, bool isTopLevel, Space* parent) {
 
 #ifdef VM_HAS_CSS
   _cstSpace = nullptr;
+  _propagator = nullptr;
 #endif
 }
 
@@ -192,8 +243,26 @@ Space::Space(GR gr, Space* from) {
   }
 #endif
 
+  // constraint space initialization
+  // TODO: in this constructor Should I create a clone of the constraint
+  // space that is insidefrom?
 #ifdef VM_HAS_CSS
-  _cstSpace = nullptr;
+  if(from->hasConstraintSpace()){
+    assert(_cstSpace==nullptr);
+    if(!from->getCstSpace().failed() && from->getCstSpace().stable()){
+      _cstSpace = (GecodeSpace*) from->getCstSpace().clone(false);
+    }else{
+      _cstSpace = nullptr;
+    }
+  }else{
+    _cstSpace = nullptr;
+  }
+  //Given than *from* space should be stable to allow copy, then there is
+  //no need to create a propagationThread in this stage. Moreover, the
+  //space *from* should not contain a propagatioThread.
+  _propagator = nullptr;
+  assert(!from->hasPropagationThread());
+    
 #endif
 }
 
@@ -255,6 +324,11 @@ void Space::fail(VM vm) {
   vm->setCurrentSpace(parent);
 
   bindStatusVar(vm, build(vm, vm->coreatoms.failed));
+#ifdef VM_HAS_CSS
+  if(hasConstraintSpace()){
+    getCstSpace().fail();
+  }
+#endif
 }
 
 bool Space::merge(VM vm, Space* dest) {
@@ -272,6 +346,14 @@ bool Space::merge(VM vm, Space* dest) {
     if (src->cascadedRunnableThreadCount > 0)
       dest->cascadedRunnableThreadCount += src->cascadedRunnableThreadCount-1;
   }
+#ifdef VM_HAS_CSS
+  if(src->hasConstraintSpace()){
+    //anfelbar@: This is mandatory... I believe.
+    assert(dest->hasConstraintSpace());
+    //anfelbar@: Update all constraint vars of currentSpace.
+    dest->getCstSpace().reflectVars(src->getCstSpace());
+  }
+#endif
 
   // Merge constraints
   return src->installThis(/* isMerge = */ true);
@@ -304,6 +386,12 @@ void Space::kill(VM vm) {
 
   assert(vm->getCurrentSpace() == parent);
   bindStatusVar(vm, build(vm, vm->coreatoms.failed));
+}
+
+void Space::inject(VM vm, RichNode callable) {
+  Space* src = this;
+  src->clearStatusVar(vm);
+  ozcalls::asyncOzCall(vm, src, callable, *src->getRootVar());
 }
 
 // Status variable
@@ -462,6 +550,7 @@ void Space::checkStability() {
   assert(status() == ssNormal);
 
   Space* parent = getParent();
+  
 
   if (isStable()) {
     // Succeeded
@@ -472,21 +561,67 @@ void Space::checkStability() {
       UnstableNode newStatus = buildTuple(vm, vm->coreatoms.alternatives,
                                           alternatives);
       bindStatusVar(vm, newStatus);
-    } else {
+    } 
+#ifdef VM_HAS_CSS
+    //The next code should be replaced by operations of the (not yet implemented) mozart distributor.
+    if(hasConstraintSpace()){
+      assert(_cstSpace->stable());
+      
+      if ( _cstSpace->getLastStatus() == 0){//failed space return immediately.
+	//if the mozart space is failed, then return failed (failed space is stronger than distributable space?)
+	bindStatusVar(vm, Atom::build(vm, vm->coreatoms.failed));
+      }
+      else if (_cstSpace->getLastStatus() == 2){//distributable space then return alternatives(N).
+	//if the mozart space is succeded, then return this tuple (distributable space is stronger than succeded space?).
+	bindStatusVar(vm,  buildTuple(vm, vm->coreatoms.alternatives, (nativeint)2));
+      }
+      else {//succeded space depends also on the mozart thread count
+	bindStatusVar(vm, genSucceeded(vm, getThreadCount() == 0));
+      }
+    }
+#endif
+    else {
       bindStatusVar(vm, genSucceeded(vm, getThreadCount() == 0));
     }
   } else {
-    deinstallTo(parent); // TODO Why !?
-
+    deinstallTo(parent); // TODO Why !?  
+    
     if (!hasRunnableThreads()) {
       // No runnable threads: suspended
-
       UnstableNode newStatusVar = OptVar::build(vm, parent);
       bindStatusVar(vm, buildTuple(vm, vm->coreatoms.suspended, newStatusVar));
       _statusVar = std::move(newStatusVar);
     }
   }
 }
+
+#ifdef VM_HAS_CSS
+//Constraint space
+/* If the _cstSpace is null then create one.
+ * If the _propagator thread is null then add one to this space.
+ * If the _propagator thread is not null but it is terminated, create a new one.
+ * If createThread is true then creates a new _propagator thread given above conditions.
+ */
+GecodeSpace& Space::getCstSpace(bool createThread){
+  if (_cstSpace == nullptr)
+    _cstSpace = new GecodeSpace;
+  if (_propagator == nullptr){
+    if (createThread){
+      //Adding a new runnable thread makes the mozart space unstable,
+      //so we clear the status var to allow a forthcoming status change...
+    _propagator = new internal::PropagationThread(vm, this);
+    clearStatusVar(vm);
+    }
+  }else if (_propagator->isTerminated()){
+    if (createThread){
+      _propagator = nullptr;
+      _propagator = new internal::PropagationThread(vm, this);
+      clearStatusVar(vm); 
+    }   
+  }
+  return *_cstSpace;
+}
+#endif
 
 // Installation and deinstallation
 
@@ -604,7 +739,6 @@ void Space::createPropagateThreadOnceAndSuspendItOnVar(
     propagateThread->suspendOnVar(vm, variable);
   }
 }
-
 }
 
 #endif // MOZART_GENERATOR

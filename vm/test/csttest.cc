@@ -45,3 +45,19 @@ TEST_F(CstTest, SmallIntIntVarLikeInterface) {
   UnstableNode isInO = IntVarLike(n).isIn(vm,o);
   EXPECT_FALSE(getArgument<bool>(vm,isInO));
 }
+
+TEST_F(CstTest, IntVarLike) {
+  nativeint x = -5;
+  UnstableNode xNode = SmallInt::build(vm,x);
+  EXPECT_TRUE(IntVarLike(xNode).isIntVarLike(vm));
+
+  // The following test only makes sense in 64 bits architectures
+  // where a nativeint can store integer bigger than INT_MIN
+  nativeint out = INT_MIN + 1;
+  EXPECT_FALSE(CstIntVar::validAsElement(out));
+  UnstableNode outNode = SmallInt::build(vm,out);
+  EXPECT_FALSE(IntVarLike(outNode).isIntVarLike(vm));
+
+  EXPECT_RAISE(MOZART_STR("IntVarLike"),
+               CstIntVar::build(vm,outNode,outNode));
+}

@@ -46,7 +46,7 @@ void GarbageCollector::doGC() {
 
   // Root of garbage collection
   vm->startGC(this);
-
+  
   // GC loop
   runCopyLoop<GarbageCollector>();
 
@@ -57,6 +57,13 @@ void GarbageCollector::doGC() {
     std::cerr << "After GC: " << vm->getMemoryManager().getAllocated();
     std::cerr << " bytes used." << std::endl;
   }
+
+#ifdef VM_HAS_CSS  
+  //Whenever the virtual machine garbage collection is executed,
+  //execute also garbage collection of the GecodeSpaces.
+  //Why? GecodeSpaces are allocated outside the mozart heap.
+  GecodeSpace::gCollect();
+#endif  
 }
 
 void GarbageCollector::processSpace(SpaceRef& to, SpaceRef from) {

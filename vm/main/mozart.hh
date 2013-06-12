@@ -43,6 +43,9 @@
 #include "runnable.hh"
 #include "sclone.hh"
 #include "space.hh"
+#ifdef VM_HAS_CSS
+#include "gecode-space.hh"
+#endif
 #include "storage.hh"
 #include "store.hh"
 #include "threadpool.hh"

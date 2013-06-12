@@ -177,6 +177,9 @@ public:
   inline
   void kill(VM vm);
 
+  inline
+  void inject(VM vm, RichNode callable);
+
 // Distributor
 
 public:
@@ -337,15 +340,39 @@ private:
 
 #ifdef VM_HAS_CSS
 public: 
-  GecodeSpace& getCstSpace() {
-    if (_cstSpace == nullptr)
-      _cstSpace = new GecodeSpace;
-    return *_cstSpace;
-  }
+  /* The gecode constraint space is created only when needed. That need is
+   * reflected by (for instance) the declaration of a constraint variable.
+   * This method returns the gecode space associated to the mozart space,
+   * creating a new on if needed.
+   * An important aspect here is that the gecode space uses external memmory.
+   * That is, memmory that is not managed by the mozart virtual machine. For
+   * that reason we have to handle the copy and clonning of gecode spaces in
+   * order to not cause memmory leaks. 
+   * How to use: Whenever the space needs to become unstable (e.g. constraint posting and
+   * commit operations) then the argument must be set to true. In that way the
+   * propagator thread is added to the space (if there is not already one).
+   */
+  inline
+  GecodeSpace& getCstSpace(bool createThread=false);
 
   bool hasConstraintSpace() {
     return _cstSpace != nullptr;
   }
+  
+  bool hasPropagationThread(){
+    if (_propagator == nullptr)
+      return false;
+    if (_propagator->isTerminated())
+      return false;
+    return true;
+  }
+
+  void updateCstSpace(GecodeSpace* cstSpace) {
+    delete _cstSpace;
+    _cstSpace = nullptr;//Is this necessary?
+    _cstSpace = cstSpace;
+  }
+  
 #endif
 
 // Fields
@@ -377,8 +404,12 @@ private:
   SpaceTrail trail;
   SpaceScript script;
 
+  // _cstSpace: Gecode space associated with this mozart space and
+  // _propagator: thread used to propagate this space when needed:
+  //              e.g. new constraint variable or new constraint posting.
 #ifdef VM_HAS_CSS
   GecodeSpace* _cstSpace;
+  Runnable* _propagator;
 #endif
   /*
    * Maintaining a counter of threads

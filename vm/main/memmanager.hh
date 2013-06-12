@@ -25,13 +25,14 @@
 #ifndef __MEMMANAGER_H
 #define __MEMMANAGER_H
 
+#include <cstdlib>
 #include <algorithm>
 
 namespace mozart {
 
 const size_t MegaBytes = 1024*1024;
 
-const size_t MAX_MEMORY = 1024 * MegaBytes;
+const size_t MAX_MEMORY = 768 * MegaBytes;
 const size_t MemoryRoom = 10 * MegaBytes;
 
 class MemoryManager {
@@ -58,8 +59,11 @@ public:
   }
 
   void init() {
-    if (_baseBlock == nullptr)
+    if (_baseBlock == nullptr) {
       _baseBlock = static_cast<char*>(::malloc(_maxMemory));
+      if (_baseBlock == nullptr)
+        throw std::bad_alloc();
+    }
 
     _nextBlock = _baseBlock;
     _allocated = 0;

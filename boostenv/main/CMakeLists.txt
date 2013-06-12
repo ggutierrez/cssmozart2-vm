@@ -87,5 +87,10 @@ add_custom_target(genboostsources
 
 # Boost environment library
 
+if(BUILD_CSS)
+  add_definitions(-DVM_HAS_CSS=1)
+  include_directories(${GECODE_INCLUDES})
+endif()
+
 add_library(mozartvmboost boostenv.cc boostenvmodules.cc)
 add_dependencies(mozartvmboost genboostsources)
